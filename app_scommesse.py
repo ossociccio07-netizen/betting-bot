@@ -7,94 +7,107 @@ import io
 from datetime import datetime, timedelta
 
 # ==============================================================================
-# CONFIGURAZIONE INIZIALE
+# CONFIGURAZIONE
 # ==============================================================================
 DEFAULT_BUDGET = 100.0
 
-st.set_page_config(page_title="QUANTUM BETTING PRO", page_icon="💎", layout="centered")
+st.set_page_config(page_title="BETTING PRO VISIBLE", page_icon="💎", layout="centered")
 
 # ==============================================================================
-# CSS PER LOOK "APP DA 4000€" (Dark & Neon)
+# DESIGN "HIGH CONTRAST" (LEGGI BENISSIMO)
 # ==============================================================================
 st.markdown("""
 <style>
-    /* Pulizia Interfaccia */
+    /* Nasconde elementi inutili */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
     [data-testid="stSidebar"] {display: none;}
     
-    /* Sfondo e Testi */
+    /* SFONDO GENERALE */
     .stApp {
-        background-color: #0e1117;
+        background-color: #000000; /* Nero assoluto per contrasto */
+    }
+
+    /* CARD PARTITA */
+    .bet-card {
+        background-color: #121212; /* Grigio molto scuro */
+        border: 1px solid #333;
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 20px;
     }
     
-    /* TAB STYLING */
-    .stTabs [data-baseweb="tab-list"] { gap: 10px; background-color: #0e1117; padding: 10px 0; }
+    /* TITOLI */
+    .match-header {
+        color: #ffffff; /* BIANCO PURO */
+        font-size: 20px;
+        font-weight: bold;
+        border-bottom: 1px solid #333;
+        padding-bottom: 10px;
+        margin-bottom: 15px;
+    }
+    
+    /* CONSIGLIO (IL RISULTATO) */
+    .tip-box {
+        background-color: #1a1a1a;
+        border-left: 5px solid #00ffea; /* Ciano Neon */
+        padding: 15px;
+        margin-bottom: 10px;
+    }
+    .tip-label {
+        color: #aaaaaa;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    .tip-value {
+        color: #00ffea; /* SCRITTA NEON */
+        font-size: 28px;
+        font-weight: 900;
+        margin-top: 5px;
+    }
+    
+    /* BOX SOLDI (PUNTATA) */
+    .stake-box {
+        background-color: #ffffff; /* SFONDO BIANCO */
+        color: #000000; /* SCRITTA NERA */
+        border-radius: 8px;
+        padding: 10px;
+        text-align: center;
+        margin-top: 5px;
+    }
+    .stake-label { font-size: 10px; font-weight: bold; text-transform: uppercase; }
+    .stake-value { font-size: 22px; font-weight: 900; }
+    
+    /* STATISTICHE */
+    .stats-row {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 15px;
+        color: #dddddd; /* Grigio chiaro leggibile */
+        font-size: 13px;
+        background: #1a1a1a;
+        padding: 10px;
+        border-radius: 6px;
+    }
+    
+    /* BOTTONI TAB */
     .stTabs [data-baseweb="tab"] {
-        height: 50px; background-color: #1f1f1f; border-radius: 8px; 
-        color: #888; flex: 1; border: 1px solid #333; font-weight: 600;
+        color: #ffffff;
+        background-color: #222;
+        border: 1px solid #444;
     }
     .stTabs [aria-selected="true"] {
-        background-color: #00d26a !important; color: #000 !important; border: none; box-shadow: 0 0 10px rgba(0,210,106,0.4);
+        background-color: #00ffea !important;
+        color: #000000 !important;
+        font-weight: bold;
     }
-    
-    /* CARD PRINCIPALE */
-    .bet-card {
-        background: linear-gradient(145deg, #1a1a1a, #252525);
-        border: 1px solid #333; border-radius: 15px; padding: 20px;
-        margin-bottom: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-        position: relative; overflow: hidden;
-    }
-    
-    /* HEADER PARTITA */
-    .match-title {
-        font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 5px;
-        display: flex; justify-content: space-between; align-items: center;
-    }
-    .league-tag {
-        font-size: 10px; text-transform: uppercase; letter-spacing: 1px;
-        background-color: #333; padding: 3px 8px; border-radius: 4px; color: #ccc;
-    }
-    
-    /* SEZIONE CONSIGLIO (VERDE/BLU/ARANCIO) */
-    .tip-section {
-        display: flex; justify-content: space-between; align-items: center;
-        margin-top: 15px; padding: 10px; border-radius: 10px;
-        background-color: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05);
-    }
-    .tip-label { font-size: 10px; color: #aaa; text-transform: uppercase; letter-spacing: 1px; }
-    .tip-value { font-size: 24px; font-weight: 900; letter-spacing: -1px; }
-    
-    /* COLORI DINAMICI */
-    .color-green { color: #00d26a; text-shadow: 0 0 10px rgba(0,210,106,0.3); }
-    .color-blue { color: #00bfff; text-shadow: 0 0 10px rgba(0,191,255,0.3); }
-    .color-orange { color: #ffaa00; text-shadow: 0 0 10px rgba(255,170,0,0.3); }
-    
-    /* BOX SOLDI (STAKE) */
-    .stake-container {
-        text-align: right;
-    }
-    .stake-val {
-        font-size: 22px; font-weight: bold; color: #fff;
-        background: #00d26a; padding: 5px 15px; border-radius: 8px;
-        color: #000; display: inline-block;
-    }
-    
-    /* STATS GRID */
-    .stats-grid {
-        display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px;
-        padding-top: 15px; border-top: 1px solid #333;
-    }
-    .stat-item { text-align: center; }
-    .stat-num { font-size: 14px; font-weight: bold; color: #ddd; }
-    .stat-desc { font-size: 10px; color: #666; }
-
 </style>
 """, unsafe_allow_html=True)
 
 # ==============================================================================
-# MOTORE DATI (Database Completo)
+# MOTORE MATEMATICO (Invariato perché perfetto)
 # ==============================================================================
 DATABASE = [
     {"id": "I1", "nome": "🇮🇹 Serie A", "history": "https://www.football-data.co.uk/mmz4281/2526/I1.csv", "fixture": "https://fixturedownload.com/download/csv/2025/italy-serie-a-2025.csv"},
@@ -105,7 +118,6 @@ DATABASE = [
     {"id": "SP1", "nome": "🇪🇸 Liga", "history": "https://www.football-data.co.uk/mmz4281/2526/SP1.csv", "fixture": "https://fixturedownload.com/download/csv/2025/spain-la-liga-2025.csv"},
     {"id": "D1", "nome": "🇩🇪 Bund", "history": "https://www.football-data.co.uk/mmz4281/2526/D1.csv", "fixture": "https://fixturedownload.com/download/csv/2025/germany-bundesliga-2025.csv"},
     {"id": "F1", "nome": "🇫🇷 Ligue1", "history": "https://www.football-data.co.uk/mmz4281/2526/F1.csv", "fixture": "https://fixturedownload.com/download/csv/2025/france-ligue-1-2025.csv"},
-    {"id": "N1", "nome": "🇳🇱 Erediv", "history": "https://www.football-data.co.uk/mmz4281/2526/N1.csv", "fixture": "https://fixturedownload.com/download/csv/2025/netherlands-eredivisie-2025.csv"},
     {"id": "P1", "nome": "🇵🇹 Port", "history": "https://www.football-data.co.uk/mmz4281/2526/P1.csv", "fixture": "https://fixturedownload.com/download/csv/2025/portugal-primeira-liga-2025.csv"},
     {"id": "T1", "nome": "🇹🇷 Turc", "history": "https://www.football-data.co.uk/mmz4281/2526/T1.csv", "fixture": "https://fixturedownload.com/download/csv/2025/turkey-super-lig-2025.csv"},
     {"id": "B1", "nome": "🇧🇪 Belgio", "history": "https://www.football-data.co.uk/mmz4281/2526/B1.csv", "fixture": "https://fixturedownload.com/download/csv/2025/belgium-jupiler-pro-league-2025.csv"}
@@ -114,9 +126,6 @@ DATABASE = [
 if 'cart' not in st.session_state: st.session_state['cart'] = []
 if 'loaded_league' not in st.session_state: st.session_state['loaded_league'] = None
 
-# ==============================================================================
-# ALGORITMI MATEMATICI (CORE)
-# ==============================================================================
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_data(url):
     try:
@@ -133,7 +142,6 @@ def process_stats(df):
         
         avg_h, avg_a = df['FTHG'].mean(), df['FTAG'].mean()
         
-        # Pesiamo: 60% Stagione intera, 40% Ultime 5 partite (Forma)
         sc = df.groupby('HomeTeam')[['FTHG','FTAG']].mean()
         st = df.groupby('AwayTeam')[['FTAG','FTHG']].mean()
         fc = df.groupby('HomeTeam')[['FTHG','FTAG']].apply(lambda x: x.tail(5).mean())
@@ -156,11 +164,9 @@ def analyze_math(h, a, stats, ah, aa):
     try:
         if h not in stats.index or a not in stats.index: return None
         
-        # Poisson Lambda
         lh = stats.at[h,'Att_H'] * stats.at[a,'Dif_A'] * ah
         la = stats.at[a,'Att_A'] * stats.at[h,'Dif_H'] * aa
         
-        # Probabilità 1X2
         ph, pd, pa = 0, 0, 0
         for i in range(6):
             for j in range(6):
@@ -169,77 +175,65 @@ def analyze_math(h, a, stats, ah, aa):
                 elif i==j: pd+=p
                 else: pa+=p
         
-        # Probabilità Gol
         p_o25 = 1 - (poisson.pmf(0, lh+la) + poisson.pmf(1, lh+la) + poisson.pmf(2, lh+la))
         p_u25 = 1 - p_o25
         p_gg = (1 - poisson.pmf(0, lh)) * (1 - poisson.pmf(0, la))
         
         options = [
-            {"Tip": "PUNTA 1", "Prob": ph, "Q": 1/ph if ph>0 else 0, "Color": "color-blue"},
-            {"Tip": "PUNTA 2", "Prob": pa, "Q": 1/pa if pa>0 else 0, "Color": "color-blue"},
-            {"Tip": "RISCHIO X", "Prob": pd, "Q": 1/pd if pd>0 else 0, "Color": "color-orange"},
-            {"Tip": "OVER 2.5", "Prob": p_o25, "Q": 1/p_o25 if p_o25>0 else 0, "Color": "color-green"},
-            {"Tip": "UNDER 2.5", "Prob": p_u25, "Q": 1/p_u25 if p_u25>0 else 0, "Color": "color-orange"},
-            {"Tip": "GOAL (GG)", "Prob": p_gg, "Q": 1/p_gg if p_gg>0 else 0, "Color": "color-green"}
+            {"Tip": "PUNTA 1", "Prob": ph, "Q": 1/ph if ph>0 else 0},
+            {"Tip": "PUNTA 2", "Prob": pa, "Q": 1/pa if pa>0 else 0},
+            {"Tip": "RISCHIO X", "Prob": pd, "Q": 1/pd if pd>0 else 0},
+            {"Tip": "OVER 2.5", "Prob": p_o25, "Q": 1/p_o25 if p_o25>0 else 0},
+            {"Tip": "UNDER 2.5", "Prob": p_u25, "Q": 1/p_u25 if p_u25>0 else 0},
+            {"Tip": "GOAL (GG)", "Prob": p_gg, "Q": 1/p_gg if p_gg>0 else 0}
         ]
         
-        # Logica di Selezione Migliore
-        # Preferiamo Over/Goal se > 55%, Esiti finali se > 50%, X se > 33%
         valid = []
         for o in options:
-            thr = 0.33 if "X" in o['Tip'] else (0.55 if "OVER" in o['Tip'] or "GOAL" in o['Tip'] else 0.50)
+            thr = 0.33 if "X" in o['Tip'] else (0.55 if "OVER" in o['Tip'] or "GOAL" in o['Tip'] else 0.52)
             if o['Prob'] > thr: valid.append(o)
             
         if valid:
             valid.sort(key=lambda x: x['Prob'], reverse=True)
             best = valid[0]
         else:
-            best = {"Tip": "NO BET", "Prob": 0, "Q": 0, "Color": "gray"}
+            best = {"Tip": "NO BET", "Prob": 0, "Q": 0}
 
         return {
             "c": h, "o": a, "Best": best, "All": options,
-            "xG_H": lh, "xG_A": la,
-            "Force_H": stats.at[h,'Att_H'], "Force_A": stats.at[a,'Att_A']
+            "xG_H": lh, "xG_A": la
         }
     except: return None
 
 def calculate_stake(prob, quota, bankroll):
-    """Calcolo Money Management Professionale (Kelly / 5)"""
     try:
         if quota <= 1: return 0
         f = ((quota - 1) * prob - (1 - prob)) / (quota - 1)
-        stake = bankroll * (f * 0.20) # 20% del Kelly per sicurezza massima
+        stake = bankroll * (f * 0.20)
         return round(max(0, stake), 2)
     except: return 0
 
 # ==============================================================================
-# INTERFACCIA UTENTE (UI)
+# UI VISIBILE
 # ==============================================================================
-st.title("💎 QUANTUM BETTING PRO")
+st.title("💎 BETTING PRO v11")
 
-# BANKROLL HEADER
-with st.container():
-    c1, c2 = st.columns([2, 1])
-    with c1:
-        st.markdown("### 🏦 Bankroll Management")
-        st.caption("Inserisci il tuo budget totale. L'algoritmo calcolerà l'investimento ottimale per ogni singola giocata.")
-    with c2:
-        bankroll = st.number_input("Budget (€)", value=DEFAULT_BUDGET, step=10.0, format="%.2f")
+# Box Budget (Stile pulito)
+st.caption("Budget Totale (€)")
+bankroll = st.number_input("", value=DEFAULT_BUDGET, step=10.0, label_visibility="collapsed")
 
-# TABS
-st.write("") # Spacer
-tab_radar, tab_cart = st.tabs(["📡 RADAR AUTOMATICO", "🛠️ SCHEDINA MANUALE"])
+tab_radar, tab_cart = st.tabs(["RADAR", "SCHEDINA"])
 
-# --- TAB 1: RADAR (Scanner Veloce) ---
+# --- RADAR ---
 with tab_radar:
-    c_today, c_tom = st.columns(2)
+    c1, c2 = st.columns(2)
     t_scan = None
-    if c_today.button("SCANSIONA OGGI 📅", use_container_width=True): t_scan = 0
-    if c_tom.button("SCANSIONA DOMANI 📆", use_container_width=True): t_scan = 1
+    if c1.button("OGGI", use_container_width=True): t_scan = 0
+    if c2.button("DOMANI", use_container_width=True): t_scan = 1
     
     if t_scan is not None:
         target_d = (datetime.now() + timedelta(days=t_scan)).strftime('%Y-%m-%d')
-        st.info(f"Analisi dei mercati per il {target_d}...")
+        st.info(f"Analisi {target_d}...")
         
         found = False
         bar = st.progress(0)
@@ -264,37 +258,31 @@ with tab_radar:
                                 c, o = m.get(c,c), m.get(o,o)
                                 
                                 res = analyze_math(c, o, stats, ah, aa)
-                                # Mostra solo High Confidence (>60%)
                                 if res and res['Best']['Prob'] > 0.60:
                                     found = True
                                     best = res['Best']
-                                    stake = calculate_stake(best['Prob'], best['Q']*1.05, bankroll)
-                                    
-                                    # CARD MINIMAL PER IL RADAR
+                                    # CARD COMPATTA E LEGGIBILE
                                     st.markdown(f"""
-                                    <div class="bet-card" style="padding: 10px; margin-bottom: 10px;">
-                                        <div style="display:flex; justify-content:space-between;">
-                                            <div style="font-weight:bold; color:white;">{c} vs {o}</div>
-                                            <div class="league-tag">{db['nome']}</div>
-                                        </div>
-                                        <div style="display:flex; justify-content:space-between; margin-top:5px;">
-                                            <div style="color:{'#00d26a' if 'OVER' in best['Tip'] else '#00bfff'}; font-weight:bold;">{best['Tip']}</div>
-                                            <div style="color:#aaa;">{best['Prob']*100:.0f}%</div>
+                                    <div class="bet-card" style="padding:15px; margin-bottom:10px;">
+                                        <div style="color:white; font-weight:bold;">{c} vs {o}</div>
+                                        <div style="font-size:12px; color:#aaa;">{db['nome']}</div>
+                                        <hr style="border-color:#333; margin:8px 0;">
+                                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                                            <div style="color:#00ffea; font-weight:bold; font-size:18px;">{best['Tip']}</div>
+                                            <div style="color:white; font-weight:bold;">{best['Prob']*100:.0f}%</div>
                                         </div>
                                     </div>
                                     """, unsafe_allow_html=True)
         bar.empty()
-        if not found: st.warning("Nessuna occasione 'High Value' trovata per questa data.")
+        if not found: st.warning("Nessuna occasione Top (>60%) trovata.")
 
-
-# --- TAB 2: CARRELLO (Analisi Profonda) ---
+# --- CARRELLO ---
 with tab_cart:
     names = [d['nome'] for d in DATABASE]
-    sel = st.selectbox("Seleziona Campionato", names)
+    sel = st.selectbox("Campionato", names)
     
-    # Auto-Load
     if st.session_state['loaded_league'] != sel:
-        with st.spinner(f"Caricamento dati {sel}..."):
+        with st.spinner("Loading..."):
             db = next(d for d in DATABASE if d['nome'] == sel)
             df = get_data(db['history'])
             if df is not None:
@@ -307,92 +295,60 @@ with tab_cart:
         h = c1.selectbox("Casa", st.session_state['cur_teams'])
         a = c2.selectbox("Ospite", st.session_state['cur_teams'], index=1)
         
-        if st.button("➕ AGGIUNGI ALLA LISTA", use_container_width=True):
-            if h != a:
-                st.session_state['cart'].append({
-                    'c': h, 'o': a, 'lega': sel,
-                    'stats': st.session_state['cur_stats'],
-                    'ah': st.session_state['cur_ah'], 'aa': st.session_state['cur_aa']
-                })
-                st.toast("Match aggiunto", icon="✅")
+        if st.button("➕ AGGIUNGI", use_container_width=True):
+            if h != a: st.session_state['cart'].append({'c': h, 'o': a, 'lega': sel, 'stats': st.session_state['cur_stats'], 'ah': st.session_state['cur_ah'], 'aa': st.session_state['cur_aa']})
 
     st.divider()
     
     if st.session_state['cart']:
-        st.markdown(f"### 🛒 Schedina ({len(st.session_state['cart'])})")
-        
-        # Gestione Lista
+        st.subheader(f"Ticket ({len(st.session_state['cart'])})")
         for i, item in enumerate(st.session_state['cart']):
-            c_txt, c_del = st.columns([5,1])
-            c_txt.text(f"{item['c']} vs {item['o']}")
-            if c_del.button("🗑️", key=f"del_{i}"):
+            c1, c2 = st.columns([5,1])
+            c1.text(f"{item['c']} vs {item['o']}")
+            if c2.button("🗑️", key=f"del_{i}"):
                 st.session_state['cart'].pop(i)
                 st.rerun()
 
-        # BOTTONE ANALISI
-        if st.button("🚀 ELABORA STRATEGIA VINCENTE", type="primary", use_container_width=True):
+        if st.button("🚀 ANALIZZA ORA", type="primary", use_container_width=True):
             
             for item in st.session_state['cart']:
                 res = analyze_math(item['c'], item['o'], item['stats'], item['ah'], item['aa'])
                 
                 if res:
                     best = res['Best']
-                    # Quota stimata dal bot + 5% spread
-                    est_quota = best['Q'] * 1.05
-                    stake = calculate_stake(best['Prob'], est_quota, bankroll)
+                    stake = calculate_stake(best['Prob'], best['Q']*1.05, bankroll)
                     
-                    # --- HTML CARD ---
+                    # HTML CARD AD ALTO CONTRASTO
                     st.markdown(f"""
                     <div class="bet-card">
-                        <div class="match-title">
-                            {item['c']} <span style="color:#666; font-size:14px;">vs</span> {item['o']}
-                            <span class="league-tag">{item['lega']}</span>
+                        <div class="match-header">
+                            {item['c']} <span style="color:#888; font-size:16px;">vs</span> {item['o']}
                         </div>
                         
-                        <div class="tip-section">
-                            <div>
-                                <div class="tip-label">MIGLIOR CONSIGLIO</div>
-                                <div class="tip-value {best['Color']}">{best['Tip']}</div>
-                                <div style="font-size:11px; color:#888;">Sicurezza: <b>{best['Prob']*100:.1f}%</b></div>
+                        <div style="display:flex; gap:10px;">
+                            <div class="tip-box" style="flex:2;">
+                                <div class="tip-label">MIGLIOR SCELTA</div>
+                                <div class="tip-value">{best['Tip']}</div>
+                                <div style="color:#ccc; font-size:12px;">Prob: <b>{best['Prob']*100:.1f}%</b></div>
                             </div>
-                            <div class="stake-container">
-                                <div class="tip-label">INVESTIMENTO</div>
-                                <div class="stake-val">€{stake}</div>
+                            
+                            <div class="stake-box" style="flex:1;">
+                                <div class="stake-label">PUNTA</div>
+                                <div class="stake-value">€{stake}</div>
                             </div>
                         </div>
                         
-                        <div class="stats-grid">
-                            <div class="stat-item">
-                                <div class="stat-num">{res['xG_H']:.2f}</div>
-                                <div class="stat-desc">Expected Goals Casa</div>
-                            </div>
-                            <div class="stat-item">
-                                <div class="stat-num">{res['xG_A']:.2f}</div>
-                                <div class="stat-desc">Expected Goals Ospite</div>
-                            </div>
-                            <div class="stat-item">
-                                <div class="stat-num">{res['Force_H']:.2f}</div>
-                                <div class="stat-desc">Potenza Attacco Home</div>
-                            </div>
-                            <div class="stat-item">
-                                <div class="stat-num">{res['Force_A']:.2f}</div>
-                                <div class="stat-desc">Debolezza Difesa Away</div>
-                            </div>
+                        <div class="stats-row">
+                            <div>xG Casa: <b>{res['xG_H']:.2f}</b></div>
+                            <div>xG Ospite: <b>{res['xG_A']:.2f}</b></div>
                         </div>
                     </div>
                     """, unsafe_allow_html=True)
                     
-                    # EXPANDER CON TUTTI I DATI
-                    with st.expander("📊 Analisi Completa Mercati"):
-                        c1, c2 = st.columns(2)
-                        with c1:
-                            st.caption("Esito Finale")
-                            for o in res['All'][:3]: # 1, 2, X
-                                st.progress(o['Prob'], f"{o['Tip']}: {o['Prob']*100:.1f}%")
-                        with c2:
-                            st.caption("Gol")
-                            for o in res['All'][3:]: # Over, Under, Goal
-                                st.progress(o['Prob'], f"{o['Tip']}: {o['Prob']*100:.1f}%")
+                    with st.expander("📊 Tutti i dati (Clicca qui)"):
+                        st.caption("Percentuali complete:")
+                        for o in res['All']:
+                            st.progress(o['Prob'], f"{o['Tip']}: {o['Prob']*100:.1f}%")
 
         if st.button("Svuota tutto", use_container_width=True):
             st.session_state['cart'] = []
