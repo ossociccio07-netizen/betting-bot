@@ -17,7 +17,7 @@ st.markdown("""
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
-    [data-testid="stSidebar"] {display: none;} /* Nasconde completamente la sidebar */
+    [data-testid="stSidebar"] {display: none;} 
     
     .stTabs [data-baseweb="tab-list"] {
         gap: 10px;
@@ -29,7 +29,7 @@ st.markdown("""
         border-radius: 10px;
         color: white;
         font-weight: bold;
-        flex: 1; /* Occupa tutto lo spazio */
+        flex: 1; 
     }
     .stTabs [aria-selected="true"] {
         background-color: #ff4b4b !important;
@@ -122,7 +122,6 @@ def analyze(h, a, stats, ah, aa):
 # ==============================================================================
 st.title("💎 AI Betting Pro")
 
-# Creiamo le schede in alto
 tab_auto, tab_manual = st.tabs(["📡 RADAR AUTO", "🛠️ SCHEDINA"])
 
 # --- TAB 1: AUTO ---
@@ -182,11 +181,9 @@ with tab_auto:
 with tab_manual:
     st.caption("Costruisci il tuo ticket")
     
-    # Selezione Campionato
     names = [d['nome'] for d in DATABASE]
     sel_name = st.selectbox("Campionato", names)
     
-    # Caricamento "Ghost"
     if st.session_state['loaded_league'] != sel_name:
         with st.spinner("Loading..."):
             sel_db = next(d for d in DATABASE if d['nome'] == sel_name)
@@ -196,10 +193,10 @@ with tab_manual:
                 st.session_state['cur_stats'] = stats
                 st.session_state['cur_ah'] = ah
                 st.session_state['cur_aa'] = aa
-                st.session_state['cur_teams'] = sorted(stats.index.tolist()) if stats else []
+                # FIX: Controllo esplicito se stats esiste
+                st.session_state['cur_teams'] = sorted(stats.index.tolist()) if stats is not None else []
                 st.session_state['loaded_league'] = sel_name
 
-    # Input Squadre
     if 'cur_teams' in st.session_state and st.session_state['cur_teams']:
         c1, c2 = st.columns(2)
         h = c1.selectbox("Casa", st.session_state['cur_teams'])
@@ -216,11 +213,9 @@ with tab_manual:
 
     st.divider()
     
-    # Carrello e Risultati
     if st.session_state['cart']:
         st.subheader(f"Ticket ({len(st.session_state['cart'])})")
         
-        # Lista con tasto elimina
         for i, item in enumerate(st.session_state['cart']):
             with st.container(border=True):
                 ct, cd = st.columns([5,1])
