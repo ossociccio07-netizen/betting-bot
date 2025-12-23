@@ -6,21 +6,18 @@ import requests
 import io
 from datetime import datetime, timedelta
 from groq import Groq
+from duckduckgo_search import DDGS
 
 # ==============================================================================
-# ⚙️ CONFIGURAZIONE UTENTE (MODIFICA QUI!)
+# ⚙️ CONFIGURAZIONE UTENTE
 # ==============================================================================
-
-# 1. INCOLLA QUI LA TUA API KEY DI GROQ (tra le virgolette)
 GROQ_API_KEY = "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" 
-
-# 2. BUDGET INIZIALE DI DEFAULT
 DEFAULT_BUDGET = 100.0
 
 # ==============================================================================
 # CONFIGURAZIONE GRAFICA
 # ==============================================================================
-st.set_page_config(page_title="AI Betting GOD", page_icon="🤖", layout="centered")
+st.set_page_config(page_title="AI Betting GOD Live", page_icon="📡", layout="centered")
 
 st.markdown("""
 <style>
@@ -48,7 +45,10 @@ st.markdown("""
     .ai-text {
         font-size: 14px; line-height: 1.5; color: #e0e0e0;
         background-color: #262730; padding: 15px; border-radius: 10px;
-        border-left: 3px solid #00d26a;
+        border-left: 3px solid #ff4b4b; /* Rosso per indicare News Live */
+    }
+    .news-badge {
+        font-size: 10px; background-color: #ff4b4b; color: white; padding: 2px 6px; border-radius: 4px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -58,7 +58,6 @@ st.markdown("""
 # ==============================================================================
 DATABASE = [
     {"id": "I1", "nome": "🇮🇹 Serie A", "history": "https://www.football-data.co.uk/mmz4281/2526/I1.csv", "fixture": "https://fixturedownload.com/download/csv/2025/italy-serie-a-2025.csv"},
-    {"id": "I2", "nome": "🇮🇹 Serie B", "history": "https://www.football-data.co.uk/mmz4281/2526/I2.csv", "fixture": "https://fixturedownload.com/download/csv/2025/italy-serie-b-2025.csv"},
     {"id": "E0", "nome": "🇬🇧 Premier", "history": "https://www.football-data.co.uk/mmz4281/2526/E0.csv", "fixture": "https://fixturedownload.com/download/csv/2025/england-premier-league-2025.csv"},
     {"id": "E1", "nome": "🇬🇧 Champ", "history": "https://www.football-data.co.uk/mmz4281/2526/E1.csv", "fixture": "https://fixturedownload.com/download/csv/2025/england-championship-2025.csv"},
     {"id": "SP1", "nome": "🇪🇸 Liga", "history": "https://www.football-data.co.uk/mmz4281/2526/SP1.csv", "fixture": "https://fixturedownload.com/download/csv/2025/spain-la-liga-2025.csv"},
@@ -160,32 +159,56 @@ def analyze_math(h, a, stats, ah, aa):
     except: return None
 
 # ==============================================================================
-# AGENTE AI (GROQ) - MODELLO AGGIORNATO
+# 🌍 MOTORE DI RICERCA LIVE (NEWS)
 # ==============================================================================
-def ask_ai_agent(match_data, stake):
+def search_live_news(team1, team2):
+    """Cerca su DuckDuckGo notizie fresche"""
+    query = f"{team1} vs {team2} team news injuries prediction"
+    try:
+        results = DDGS().text(query, max_results=3)
+        news_summary = ""
+        for r in results:
+            news_summary += f"- {r['body']}\n"
+        return news_summary[:1000] # Limitiamo a 1000 caratteri
+    except Exception as e:
+        return "Nessuna notizia live trovata (Errore connessione)."
+
+# ==============================================================================
+# AGENTE AI (CON NEWS REALI)
+# ==============================================================================
+def ask_ai_agent(match_data, stake, live_news):
     if not GROQ_API_KEY or "INCOLLA" in GROQ_API_KEY: 
         return "⚠️ Manca la API KEY nel codice."
     
     client = Groq(api_key=GROQ_API_KEY)
     
     prompt = f"""
-    Sei un betting analyst esperto.
-    Match: {match_data['c']} vs {match_data['o']}.
-    Il modello Poisson dice: {match_data['Tip']} (Prob: {match_data['ProbWin']*100:.1f}%).
-    Dati Stats: Attacco Casa {match_data['Att_H']:.2f}, Difesa Ospite {match_data['Dif_A']:.2f}.
-    L'algoritmo di Money Management suggerisce di puntare: €{stake}.
+    Sei un betting analyst esperto. Hai due fonti di dati:
     
-    SPIEGA IN 2 FRASI PERCHÉ:
-    1. Perché statisticamente è uscito questo risultato?
-    2. Perché la puntata è alta/bassa? (Se alta = alta sicurezza, se bassa = rischio).
-    Sii colloquiale e usa emoji.
+    1. DATI MATEMATICI (Storico):
+    - Match: {match_data['c']} vs {match_data['o']}
+    - Poisson dice: {match_data['Tip']} (Sicurezza {match_data['ProbWin']*100:.1f}%)
+    - Attacco Casa: {match_data['Att_H']:.2f}, Difesa Ospite: {match_data['Dif_A']:.2f}
+    
+    2. NOTIZIE LIVE DAL WEB (Fattori umani/infortuni):
+    {live_news}
+    
+    COMPITO:
+    Confronta la Matematica con le Notizie. 
+    Se le notizie dicono che mancano giocatori chiave (es. Bruno Fernandes, top scorer, portiere), DEVI contraddire la matematica e consigliare prudenza o un altro esito.
+    
+    Scrivi una risposta breve (Max 3 frasi):
+    - Analizza l'impatto delle notizie live.
+    - Conferma o Cambia il pronostico matematico.
+    - Commenta la puntata di €{stake} (consiglia di abbassarla se ci sono assenze pesanti).
+    Usa emoji.
     """
     
     try:
         completion = client.chat.completions.create(
-            model="llama-3.3-70b-versatile", # <--- MODELLO AGGIORNATO QUI
+            model="llama-3.3-70b-versatile",
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.7, max_tokens=150, top_p=1,
+            temperature=0.6, max_tokens=200, top_p=1,
         )
         return completion.choices[0].message.content
     except Exception as e:
@@ -194,16 +217,15 @@ def ask_ai_agent(match_data, stake):
 # ==============================================================================
 # UI PRINCIPALE
 # ==============================================================================
-st.title("🤖 AI Betting GOD")
+st.title("📡 AI Betting GOD Live")
 
 with st.expander("💰 Il tuo Budget (Clicca per modificare)", expanded=False):
     bankroll = st.number_input("Cassa Attuale (€):", value=DEFAULT_BUDGET, step=10.0)
 
-tab_auto, tab_manual = st.tabs(["📡 RADAR", "🛠️ SCHEDINA"])
+tab_auto, tab_manual = st.tabs(["RADAR AUTO", "🛒 CARRELLO SCHEDINA"])
 
-# --- TAB AUTO ---
+# --- TAB AUTO (Scansione veloce) ---
 with tab_auto:
-    # BOTTONI RIPRISTINATI
     c1, c2 = st.columns(2)
     t_scan = None
     if c1.button("OGGI 📅", use_container_width=True, type="primary"): t_scan = 0
@@ -213,7 +235,6 @@ with tab_auto:
         target_d = (datetime.now() + timedelta(days=t_scan)).strftime('%Y-%m-%d')
         st.info(f"Analisi del {target_d}...")
         
-        results_found = False
         for db in DATABASE:
             df_cal = get_data(db['fixture'])
             if df_cal is not None:
@@ -234,14 +255,12 @@ with tab_auto:
                                 
                                 res = analyze_math(c, o, stats, ah, aa)
                                 if res and res['ProbWin'] > 0.55:
-                                    results_found = True
                                     stake = calculate_stake(res['ProbWin'], res['Quota'], bankroll)
                                     
                                     with st.container(border=True):
                                         st.subheader(f"{res['c']} - {res['o']}")
                                         st.caption(db['nome'])
                                         
-                                        # ROW 1: CONSIGLIO E SOLDI
                                         c1, c2 = st.columns([3, 1])
                                         with c1:
                                             if "PUNTA" in res['Tip']: st.success(f"**{res['Tip']}**")
@@ -251,24 +270,14 @@ with tab_auto:
                                         with c2:
                                             st.markdown(f"""<div class="stake-box"><div class="stake-title">PUNTA</div><div class="stake-value">€{stake}</div></div>""", unsafe_allow_html=True)
 
-                                        # ROW 2: BARRE
+                                        # Qui non attiviamo la ricerca live automatica per non rallentare troppo (solo su richiesta nel carrello)
                                         st.progress(res['p1'], f"1: {res['p1']*100:.0f}%")
                                         st.progress(res['p_o25'], f"Over 2.5: {res['p_o25']*100:.0f}%")
-                                        
-                                        # ROW 3: POPUP AI (EXPANDER)
-                                        with st.expander("❓ Perché questa scelta? (Analisi AI)"):
-                                            with st.spinner("L'AI sta scrivendo..."):
-                                                ai_msg = ask_ai_agent(res, stake)
-                                                st.markdown(f"<div class='ai-text'>{ai_msg}</div>", unsafe_allow_html=True)
-        
-        if not results_found:
-             st.warning(f"Nessuna 'Value Bet' ad alta probabilità trovata per {target_d}.")
 
-
-# --- TAB MANUALE ---
+# --- TAB CARRELLO (Analisi Approfondita con News) ---
 with tab_manual:
     names = [d['nome'] for d in DATABASE]
-    sel = st.selectbox("Campionato", names)
+    sel = st.selectbox("Seleziona Campionato", names)
     
     if st.session_state['loaded_league'] != sel:
         with st.spinner("Loading..."):
@@ -284,28 +293,75 @@ with tab_manual:
         h = c1.selectbox("Casa", st.session_state['cur_teams'])
         a = c2.selectbox("Ospite", st.session_state['cur_teams'], index=1)
         
-        if st.button("🔮 ANALIZZA MATCH", type="primary", use_container_width=True):
-            res = analyze_math(h, a, st.session_state['cur_stats'], st.session_state['cur_ah'], st.session_state['cur_aa'])
-            if res:
-                stake = calculate_stake(res['ProbWin'], res['Quota'], bankroll)
+        if st.button("➕ AGGIUNGI AL CARRELLO", use_container_width=True):
+            if h != a:
+                st.session_state['cart'].append({
+                    'c': h, 'o': a, 'lega': sel,
+                    'stats': st.session_state['cur_stats'],
+                    'ah': st.session_state['cur_ah'], 'aa': st.session_state['cur_aa']
+                })
+                st.toast("Partita aggiunta!", icon="✅")
+
+    st.divider()
+    
+    if st.session_state['cart']:
+        st.subheader(f"🛒 Carrello ({len(st.session_state['cart'])})")
+        
+        for i, item in enumerate(st.session_state['cart']):
+            with st.container(border=True):
+                ct, cd = st.columns([5,1])
+                ct.text(f"{item['c']} vs {item['o']}")
+                if cd.button("❌", key=f"del_{i}"):
+                    st.session_state['cart'].pop(i)
+                    st.rerun()
+
+        if st.button("🚀 ANALIZZA TUTTO CON AI + NEWS LIVE", type="primary", use_container_width=True):
+             
+             progress_bar = st.progress(0)
+             for idx, item in enumerate(st.session_state['cart']):
+                progress_bar.progress((idx + 1) / len(st.session_state['cart']))
                 
-                with st.container(border=True):
-                    st.markdown(f"### {h} vs {a}")
+                # 1. Matematica
+                res = analyze_math(item['c'], item['o'], item['stats'], item['ah'], item['aa'])
+                
+                if res:
+                    stake = calculate_stake(res['ProbWin'], res['Quota'], bankroll)
                     
-                    c1, c2 = st.columns([3, 1])
-                    with c1:
-                        st.info(f"Consiglio: **{res['Tip']}**")
-                        st.caption(f"Probabilità: {res['ProbWin']*100:.1f}%")
-                    with c2:
-                        st.markdown(f"""<div class="stake-box"><div class="stake-title">PUNTA</div><div class="stake-value">€{stake}</div></div>""", unsafe_allow_html=True)
-                    
-                    st.divider()
-                    st.progress(res['p1'], f"Casa: {res['p1']*100:.0f}%")
-                    st.progress(res['p_o25'], f"Over 2.5: {res['p_o25']*100:.0f}%")
-                    st.progress(res['p_gg'], f"Goal: {res['p_gg']*100:.0f}%")
-                    
-                    # POPUP AI
-                    with st.expander("❓ Clicca per l'analisi dell'Esperto AI"):
-                        with st.spinner("Consultazione archivio..."):
-                             ai_msg = ask_ai_agent(res, stake)
-                             st.markdown(f"<div class='ai-text'>{ai_msg}</div>", unsafe_allow_html=True)
+                    with st.container(border=True):
+                        st.markdown(f"### {res['c']} vs {res['o']}")
+                        st.caption(f"Lega: {item['lega']}")
+                        
+                        # 2. Ricerca Live (News)
+                        with st.spinner(f"Cerco notizie fresche su {res['c']} - {res['o']}..."):
+                            news_text = search_live_news(res['c'], res['o'])
+                        
+                        # 3. Analisi AI (Math + News)
+                        with st.spinner("L'AI sta incrociando i dati..."):
+                            ai_msg = ask_ai_agent(res, stake, news_text)
+                        
+                        # Display
+                        c_res, c_money = st.columns([3,1])
+                        with c_res:
+                            st.info(f"Base Matematica: **{res['Tip']}**")
+                            st.caption(f"Quota > {res['Quota']:.2f}")
+                        with c_money:
+                             val = stake if stake > 0 else 0
+                             st.markdown(f"""<div class="stake-box"><div class="stake-title">PUNTA</div><div class="stake-value">€{val}</div></div>""", unsafe_allow_html=True)
+                        
+                        # AI Insight Box
+                        st.markdown(f"""
+                        <div class="ai-text">
+                            <span class="news-badge">LIVE NEWS ANALYZED</span><br>
+                            {ai_msg}
+                        </div>
+                        """, unsafe_allow_html=True)
+                        
+                        st.divider()
+                        st.progress(res['p1'], f"1: {res['p1']*100:.0f}%")
+                        st.progress(res['p_o25'], f"Over 2.5: {res['p_o25']*100:.0f}%")
+             
+             progress_bar.empty()
+                            
+        if st.button("Svuota tutto", use_container_width=True):
+            st.session_state['cart'] = []
+            st.rerun()
