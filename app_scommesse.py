@@ -7,11 +7,10 @@ import io
 from datetime import datetime, timedelta
 
 # ==============================================================================
-# CONFIGURAZIONE PREMIUM (MOBILE FIRST)
+# CONFIGURAZIONE PRO (SOLO PER I TUOI OCCHI)
 # ==============================================================================
-st.set_page_config(page_title="AI Betting", page_icon="⚽", layout="centered")
+st.set_page_config(page_title="Sniper Bet AI", page_icon="🎯", layout="centered")
 
-# CSS: Nasconde menu, footer e sidebar vuota. Migliora i bottoni.
 st.markdown("""
 <style>
     #MainMenu {visibility: hidden;}
@@ -19,21 +18,15 @@ st.markdown("""
     header {visibility: hidden;}
     [data-testid="stSidebar"] {display: none;} 
     
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 10px;
-    }
+    .stTabs [data-baseweb="tab-list"] {gap: 8px;}
     .stTabs [data-baseweb="tab"] {
-        height: 50px;
-        white-space: pre-wrap;
-        background-color: #1e1e1e;
-        border-radius: 10px;
-        color: white;
-        font-weight: bold;
-        flex: 1; 
+        height: 45px; background-color: #111; border-radius: 8px; color: #888; flex: 1;
     }
     .stTabs [aria-selected="true"] {
-        background-color: #ff4b4b !important;
-        color: white !important;
+        background-color: #00e676 !important; color: black !important; font-weight: bold;
+    }
+    .metric-box {
+        background-color: #222; padding: 10px; border-radius: 8px; text-align: center; border: 1px solid #333;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -43,11 +36,8 @@ st.markdown("""
 # ==============================================================================
 DATABASE = [
     {"id": "I1", "nome": "🇮🇹 Serie A", "history": "https://www.football-data.co.uk/mmz4281/2526/I1.csv", "fixture": "https://fixturedownload.com/download/csv/2025/italy-serie-a-2025.csv"},
-    {"id": "I2", "nome": "🇮🇹 Serie B", "history": "https://www.football-data.co.uk/mmz4281/2526/I2.csv", "fixture": "https://fixturedownload.com/download/csv/2025/italy-serie-b-2025.csv"},
     {"id": "E0", "nome": "🇬🇧 Premier", "history": "https://www.football-data.co.uk/mmz4281/2526/E0.csv", "fixture": "https://fixturedownload.com/download/csv/2025/england-premier-league-2025.csv"},
     {"id": "E1", "nome": "🇬🇧 Champ", "history": "https://www.football-data.co.uk/mmz4281/2526/E1.csv", "fixture": "https://fixturedownload.com/download/csv/2025/england-championship-2025.csv"},
-    {"id": "E2", "nome": "🇬🇧 L. One", "history": "https://www.football-data.co.uk/mmz4281/2526/E2.csv", "fixture": "https://fixturedownload.com/download/csv/2025/england-league-one-2025.csv"},
-    {"id": "E3", "nome": "🇬🇧 L. Two", "history": "https://www.football-data.co.uk/mmz4281/2526/E3.csv", "fixture": "https://fixturedownload.com/download/csv/2025/england-league-two-2025.csv"},
     {"id": "SP1", "nome": "🇪🇸 Liga", "history": "https://www.football-data.co.uk/mmz4281/2526/SP1.csv", "fixture": "https://fixturedownload.com/download/csv/2025/spain-la-liga-2025.csv"},
     {"id": "D1", "nome": "🇩🇪 Bund", "history": "https://www.football-data.co.uk/mmz4281/2526/D1.csv", "fixture": "https://fixturedownload.com/download/csv/2025/germany-bundesliga-2025.csv"},
     {"id": "F1", "nome": "🇫🇷 Ligue1", "history": "https://www.football-data.co.uk/mmz4281/2526/F1.csv", "fixture": "https://fixturedownload.com/download/csv/2025/france-ligue-1-2025.csv"},
@@ -85,7 +75,7 @@ def process_stats(df):
         fc.columns, ft.columns = ['H_GF_F','H_GS_F'], ['A_GF_F','A_GS_F']
         
         tot = pd.concat([sc,st,fc,ft], axis=1)
-        PS, PF = 0.70, 0.30
+        PS, PF = 0.60, 0.40 # Aumentato peso forma recente per precisione
         
         tot['Att_H'] = ((tot['H_GF_S']*PS + tot['H_GF_F']*PF) / avg_h)
         tot['Dif_H'] = ((tot['H_GS_S']*PS + tot['H_GS_F']*PF) / avg_a)
@@ -93,6 +83,22 @@ def process_stats(df):
         tot['Dif_A'] = ((tot['A_GS_S']*PS + tot['A_GS_F']*PF) / avg_h)
         return tot, avg_h, avg_a
     except: return None, None, None
+
+def calculate_stake(prob, quota, bankroll):
+    """Calcola la puntata usando il Criterio di Kelly Frazionario (più sicuro)"""
+    try:
+        if quota <= 1: return 0
+        b = quota - 1
+        p = prob
+        q = 1 - p
+        # Formula di Kelly: (bp - q) / b
+        f = (b * p - q) / b
+        # Usiamo Kelly/4 (molto conservativo) per non bruciare la cassa
+        safe_stake_pct = (f * 0.25) 
+        if safe_stake_pct < 0: return 0
+        stake = bankroll * safe_stake_pct
+        return round(stake, 2)
+    except: return 0
 
 def analyze(h, a, stats, ah, aa):
     try:
@@ -109,24 +115,39 @@ def analyze(h, a, stats, ah, aa):
                 else: pa+=p
         
         cons, qmin, color = "NO BET", 0.0, "grey"
+        prob_win = 0.0
         marg = 1.05
-        if ph > 0.50: qmin, cons, color = (1/ph)*marg, "PUNTA 1", "green"
-        elif pa > 0.50: qmin, cons, color = (1/pa)*marg, "PUNTA 2", "blue"
-        elif pd > 0.33: qmin, cons, color = (1/pd)*marg, "RISCHIO X", "orange"
         
-        return {"Match": f"{h} - {a}", "p1": ph, "px": pd, "p2": pa, "Tip": cons, "Quota": qmin, "c": h, "o": a}
+        if ph > 0.50: 
+            qmin, cons, color = (1/ph)*marg, "PUNTA 1", "green"
+            prob_win = ph
+        elif pa > 0.50: 
+            qmin, cons, color = (1/pa)*marg, "PUNTA 2", "blue"
+            prob_win = pa
+        elif pd > 0.35: 
+            qmin, cons, color = (1/pd)*marg, "RISCHIO X", "orange"
+            prob_win = pd
+        
+        return {
+            "Match": f"{h} - {a}", "p1": ph, "px": pd, "p2": pa, 
+            "Tip": cons, "Quota": qmin, "c": h, "o": a, "ProbWin": prob_win
+        }
     except: return None
 
 # ==============================================================================
-# UI: TAB SYSTEM (Perfetto per Mobile)
+# UI: SNIPER MODE
 # ==============================================================================
-st.title("💎 AI Betting Pro")
+st.title("🎯 Sniper Bet AI")
 
-tab_auto, tab_manual = st.tabs(["📡 RADAR AUTO", "🛠️ SCHEDINA"])
+# CASSA (INPUT UTENTE)
+with st.expander("💰 Gestione Bankroll (Clicca per settare)", expanded=True):
+    bankroll = st.number_input("Il tuo Budget Attuale (€):", value=100.0, step=10.0)
+    st.caption("Il bot calcolerà quanto puntare per massimizzare il profitto e minimizzare il rischio.")
+
+tab_auto, tab_manual = st.tabs(["RADAR AUTO", "SCHEDINA"])
 
 # --- TAB 1: AUTO ---
 with tab_auto:
-    st.caption("Scansione automatica dei calendari")
     c1, c2 = st.columns(2)
     t_scan = None
     if c1.button("OGGI", use_container_width=True, type="primary"): t_scan = 0
@@ -134,7 +155,7 @@ with tab_auto:
     
     if t_scan is not None:
         target_d = (datetime.now() + timedelta(days=t_scan)).strftime('%Y-%m-%d')
-        st.info(f"Scansione: {target_d}")
+        st.info(f"Analisi del {target_d}...")
         
         results = []
         bar = st.progress(0)
@@ -160,27 +181,46 @@ with tab_auto:
                                 res = analyze(c, o, stats, ah, aa)
                                 if res and res['Tip'] != 'NO BET':
                                     res['Lega'] = db['nome']
+                                    # Calcolo Stake Consigliato
+                                    res['Stake'] = calculate_stake(res['ProbWin'], res['Quota'], bankroll)
                                     results.append(res)
         bar.empty()
         
         if results:
-            st.success(f"Trovate {len(results)} Value Bets!")
+            # Ordina per sicurezza (Probabilità più alta prima)
+            results.sort(key=lambda x: x['ProbWin'], reverse=True)
+            
+            st.success(f"Trovate {len(results)} occasioni.")
             for res in results:
                 with st.container(border=True):
-                    st.markdown(f"**{res['Match']}**")
-                    st.caption(f"{res['Lega']}")
-                    c_res, c_bar = st.columns([1, 2])
-                    c_res.metric("Consiglio", res['Tip'], delta=f"Q: {res['Quota']:.2f}")
-                    c_bar.progress(res['p1'], f"1: {res['p1']*100:.0f}%")
-                    c_bar.progress(res['px'], f"X: {res['px']*100:.0f}%")
-                    c_bar.progress(res['p2'], f"2: {res['p2']*100:.0f}%")
+                    head, stake_box = st.columns([3, 1])
+                    with head:
+                        st.markdown(f"**{res['Match']}**")
+                        st.caption(f"{res['Lega']} | {res['Tip']}")
+                    with stake_box:
+                        if res['Stake'] > 0:
+                            st.markdown(f"""
+                            <div class="metric-box">
+                                <div style="font-size:12px">PUNTA</div>
+                                <div style="font-size:18px; color:#00e676; font-weight:bold">€{res['Stake']}</div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                        else:
+                            st.caption("No Valore")
+                    
+                    st.divider()
+                    
+                    # Dettagli Quota
+                    c_q, c_p = st.columns([1, 3])
+                    c_q.metric("Quota Min", f"{res['Quota']:.2f}")
+                    if "1" in res['Tip']: c_p.progress(res['p1'], f"Prob 1: {res['p1']*100:.0f}%")
+                    elif "2" in res['Tip']: c_p.progress(res['p2'], f"Prob 2: {res['p2']*100:.0f}%")
+                    else: c_p.progress(res['px'], f"Prob X: {res['px']*100:.0f}%")
         else:
-            st.warning("Nessuna partita interessante trovata.")
+            st.warning("Nessuna occasione trovata.")
 
 # --- TAB 2: MANUALE ---
 with tab_manual:
-    st.caption("Costruisci il tuo ticket")
-    
     names = [d['nome'] for d in DATABASE]
     sel_name = st.selectbox("Campionato", names)
     
@@ -193,7 +233,6 @@ with tab_manual:
                 st.session_state['cur_stats'] = stats
                 st.session_state['cur_ah'] = ah
                 st.session_state['cur_aa'] = aa
-                # FIX: Controllo esplicito se stats esiste
                 st.session_state['cur_teams'] = sorted(stats.index.tolist()) if stats is not None else []
                 st.session_state['loaded_league'] = sel_name
 
@@ -202,49 +241,49 @@ with tab_manual:
         h = c1.selectbox("Casa", st.session_state['cur_teams'])
         a = c2.selectbox("Ospite", st.session_state['cur_teams'], index=1)
         
-        if st.button("➕ Aggiungi al Ticket", use_container_width=True):
+        if st.button("➕ Aggiungi", use_container_width=True):
             if h != a:
                 st.session_state['cart'].append({
                     'c': h, 'o': a, 'lega': sel_name,
                     'stats': st.session_state['cur_stats'],
                     'ah': st.session_state['cur_ah'], 'aa': st.session_state['cur_aa']
                 })
-                st.toast("Partita aggiunta!", icon="✅")
 
     st.divider()
     
     if st.session_state['cart']:
-        st.subheader(f"Ticket ({len(st.session_state['cart'])})")
+        st.subheader(f"Portafoglio ({len(st.session_state['cart'])})")
         
         for i, item in enumerate(st.session_state['cart']):
             with st.container(border=True):
                 ct, cd = st.columns([5,1])
-                ct.text(f"{item['c']} - {item['o']}\n({item['lega']})")
+                ct.text(f"{item['c']} vs {item['o']}")
                 if cd.button("❌", key=f"del_{i}"):
                     st.session_state['cart'].pop(i)
                     st.rerun()
 
-        if st.button("🚀 ANALIZZA TICKET", type="primary", use_container_width=True):
+        if st.button("🚀 CALCOLA INVESTIMENTO", type="primary", use_container_width=True):
              for item in st.session_state['cart']:
                 res = analyze(item['c'], item['o'], item['stats'], item['ah'], item['aa'])
                 if res:
+                    res['Stake'] = calculate_stake(res['ProbWin'], res['Quota'], bankroll)
                     with st.container(border=True):
                         st.markdown(f"### {res['c']} vs {res['o']}")
                         
-                        col_tip, col_data = st.columns([1, 2])
-                        with col_tip:
-                            if "PUNTA" in res['Tip']: st.success(f"**{res['Tip']}**")
-                            elif "RISCHIO" in res['Tip']: st.warning(f"**{res['Tip']}**")
-                            else: st.error(res['Tip'])
-                            st.caption(f"Quota > {res['Quota']:.2f}")
+                        m1, m2 = st.columns([2, 1])
+                        with m1:
+                            if "PUNTA" in res['Tip']: st.success(f"**{res['Tip']}** @ {res['Quota']:.2f}")
+                            elif "RISCHIO" in res['Tip']: st.warning(f"**{res['Tip']}** @ {res['Quota']:.2f}")
+                            else: st.error("NO BET")
                         
-                        with col_data:
-                            st.progress(res['p1'], f"1 ({res['p1']*100:.0f}%)")
-                            st.progress(res['px'], f"X ({res['px']*100:.0f}%)")
-                            st.progress(res['p2'], f"2 ({res['p2']*100:.0f}%)")
+                        with m2:
+                            st.markdown(f"""
+                            <div class="metric-box">
+                                <div style="font-size:10px">PUNTA</div>
+                                <div style="color:#00e676; font-weight:bold">€{res['Stake']}</div>
+                            </div>
+                            """, unsafe_allow_html=True)
                             
         if st.button("Svuota tutto", use_container_width=True):
             st.session_state['cart'] = []
             st.rerun()
-    else:
-        st.info("Il ticket è vuoto. Aggiungi partite!")
