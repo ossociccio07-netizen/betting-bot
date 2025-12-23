@@ -160,7 +160,7 @@ def analyze_math(h, a, stats, ah, aa):
     except: return None
 
 # ==============================================================================
-# AGENTE AI (GROQ)
+# AGENTE AI (GROQ) - MODELLO AGGIORNATO
 # ==============================================================================
 def ask_ai_agent(match_data, stake):
     if not GROQ_API_KEY or "INCOLLA" in GROQ_API_KEY: 
@@ -183,7 +183,7 @@ def ask_ai_agent(match_data, stake):
     
     try:
         completion = client.chat.completions.create(
-            model="llama3-8b-8192",
+            model="llama-3.3-70b-versatile", # <--- MODELLO AGGIORNATO QUI
             messages=[{"role": "user", "content": prompt}],
             temperature=0.7, max_tokens=150, top_p=1,
         )
@@ -203,10 +203,17 @@ tab_auto, tab_manual = st.tabs(["📡 RADAR", "🛠️ SCHEDINA"])
 
 # --- TAB AUTO ---
 with tab_auto:
-    if st.button("SCANSIONA DOMANI 📅", use_container_width=True, type="primary"):
-        target_d = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
+    # BOTTONI RIPRISTINATI
+    c1, c2 = st.columns(2)
+    t_scan = None
+    if c1.button("OGGI 📅", use_container_width=True, type="primary"): t_scan = 0
+    if c2.button("DOMANI 📆", use_container_width=True): t_scan = 1
+
+    if t_scan is not None:
+        target_d = (datetime.now() + timedelta(days=t_scan)).strftime('%Y-%m-%d')
         st.info(f"Analisi del {target_d}...")
         
+        results_found = False
         for db in DATABASE:
             df_cal = get_data(db['fixture'])
             if df_cal is not None:
@@ -227,6 +234,7 @@ with tab_auto:
                                 
                                 res = analyze_math(c, o, stats, ah, aa)
                                 if res and res['ProbWin'] > 0.55:
+                                    results_found = True
                                     stake = calculate_stake(res['ProbWin'], res['Quota'], bankroll)
                                     
                                     with st.container(border=True):
@@ -252,6 +260,10 @@ with tab_auto:
                                             with st.spinner("L'AI sta scrivendo..."):
                                                 ai_msg = ask_ai_agent(res, stake)
                                                 st.markdown(f"<div class='ai-text'>{ai_msg}</div>", unsafe_allow_html=True)
+        
+        if not results_found:
+             st.warning(f"Nessuna 'Value Bet' ad alta probabilità trovata per {target_d}.")
+
 
 # --- TAB MANUALE ---
 with tab_manual:
