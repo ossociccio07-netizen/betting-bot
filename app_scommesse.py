@@ -7,11 +7,10 @@ import io
 from datetime import datetime, timedelta
 
 # ==============================================================================
-# CONFIGURAZIONE GRAFICA (STILE "PREMIUM")
+# CONFIGURAZIONE GRAFICA "TOTAL FOOTBALL"
 # ==============================================================================
-st.set_page_config(page_title="AI Betting Elite", page_icon="💎", layout="centered")
+st.set_page_config(page_title="AI Betting Pro 4.0", page_icon="🔥", layout="centered")
 
-# CSS: Design scuro, pulito, Mobile-Friendly
 st.markdown("""
 <style>
     #MainMenu {visibility: hidden;}
@@ -19,28 +18,30 @@ st.markdown("""
     header {visibility: hidden;}
     [data-testid="stSidebar"] {display: none;} 
     
-    /* Stile TAB (Bottoni in alto) */
-    .stTabs [data-baseweb="tab-list"] { gap: 10px; }
+    .stTabs [data-baseweb="tab-list"] { gap: 8px; }
     .stTabs [data-baseweb="tab"] {
-        height: 50px; white-space: pre-wrap; background-color: #1e1e1e; border-radius: 10px;
-        color: white; font-weight: bold; flex: 1; border: 1px solid #333;
+        height: 45px; background-color: #1a1a1a; border-radius: 8px; 
+        color: #bbb; flex: 1; border: 1px solid #333;
     }
     .stTabs [aria-selected="true"] {
-        background-color: #007bff !important; color: white !important; border: none;
+        background-color: #00d26a !important; color: black !important; font-weight: bold; border: none;
     }
     
-    /* Box Soldi (Stake) */
     .stake-box {
-        background-color: #111; border: 1px solid #00e676; border-radius: 8px;
-        padding: 10px; text-align: center; margin-bottom: 10px;
+        background-color: #000; border: 1px solid #00d26a; border-radius: 8px;
+        padding: 8px; text-align: center;
     }
-    .stake-title { font-size: 10px; color: #aaa; text-transform: uppercase; }
-    .stake-value { font-size: 20px; font-weight: bold; color: #00e676; }
+    .stake-title { font-size: 9px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
+    .stake-value { font-size: 18px; font-weight: bold; color: #00d26a; }
+    
+    .metric-row { display: flex; justify-content: space-between; margin-bottom: 5px; }
+    .metric-label { font-size: 12px; color: #aaa; }
+    .metric-val { font-size: 14px; font-weight: bold; color: white; }
 </style>
 """, unsafe_allow_html=True)
 
 # ==============================================================================
-# DATI & MOTORE MATEMATICO
+# DATI & MOTORE
 # ==============================================================================
 DATABASE = [
     {"id": "I1", "nome": "🇮🇹 Serie A", "history": "https://www.football-data.co.uk/mmz4281/2526/I1.csv", "fixture": "https://fixturedownload.com/download/csv/2025/italy-serie-a-2025.csv"},
@@ -96,14 +97,14 @@ def process_stats(df):
     except: return None, None, None
 
 def calculate_stake(prob, quota, bankroll):
-    """Calcola la puntata (Kelly Criterion / 4)"""
+    """Kelly Criterion Frazionario (Conservativo)"""
     try:
         if quota <= 1: return 0
         b = quota - 1
         p = prob
         q = 1 - p
         f = (b * p - q) / b
-        stake_pct = (f * 0.25) # Molto conservativo (Kelly frazionario)
+        stake_pct = (f * 0.25) 
         if stake_pct < 0: return 0
         stake = bankroll * stake_pct
         return round(stake, 2)
@@ -112,9 +113,12 @@ def calculate_stake(prob, quota, bankroll):
 def analyze(h, a, stats, ah, aa):
     try:
         if h not in stats.index or a not in stats.index: return None
+        
+        # Expected Goals (xG)
         lh = stats.at[h,'Att_H'] * stats.at[a,'Dif_A'] * ah
         la = stats.at[a,'Att_A'] * stats.at[h,'Dif_H'] * aa
         
+        # 1. Calcolo 1X2
         ph, pd, pa = 0, 0, 0
         for i in range(6):
             for j in range(6):
@@ -123,40 +127,68 @@ def analyze(h, a, stats, ah, aa):
                 elif i==j: pd+=p
                 else: pa+=p
         
-        cons, qmin, color = "NO BET", 0.0, "grey"
+        # 2. Calcolo GOAL / NO GOAL
+        # Prob che Home segni almeno 1 gol: 1 - P(0)
+        p_h_score = 1 - poisson.pmf(0, lh)
+        p_a_score = 1 - poisson.pmf(0, la)
+        prob_gg = p_h_score * p_a_score
+        prob_ng = 1 - prob_gg
+        
+        # 3. Calcolo OVER / UNDER 2.5
+        # Somma lambda totale
+        l_tot = lh + la
+        # P(0) + P(1) + P(2) è la probabilità di Under 2.5
+        prob_u25 = poisson.pmf(0, l_tot) + poisson.pmf(1, l_tot) + poisson.pmf(2, l_tot)
+        prob_o25 = 1 - prob_u25
+        
+        # --- DECISIONE INTELLIGENTE (IL "CONSIGLIO") ---
+        cons = "NO BET"
+        qmin = 0.0
         prob_win = 0.0
         marg = 1.05
         
-        if ph > 0.50: 
-            qmin, cons, color = (1/ph)*marg, "PUNTA 1", "green"
-            prob_win = ph
-        elif pa > 0.50: 
-            qmin, cons, color = (1/pa)*marg, "PUNTA 2", "blue"
-            prob_win = pa
-        elif pd > 0.35: 
-            qmin, cons, color = (1/pd)*marg, "RISCHIO X", "orange"
-            prob_win = pd
+        # Lista di tutte le probabilità
+        options = [
+            ("PUNTA 1", ph, 1/ph if ph>0 else 0),
+            ("PUNTA 2", pa, 1/pa if pa>0 else 0),
+            ("RISCHIO X", pd, 1/pd if pd>0 else 0),
+            ("OVER 2.5", prob_o25, 1/prob_o25 if prob_o25>0 else 0),
+            ("UNDER 2.5", prob_u25, 1/prob_u25 if prob_u25>0 else 0),
+            ("GOAL (GG)", prob_gg, 1/prob_gg if prob_gg>0 else 0)
+        ]
+        
+        # Filtriamo quelle sopra una soglia di sicurezza
+        safe_options = [o for o in options if o[1] > 0.55 or (o[0]=="RISCHIO X" and o[1]>0.33)]
+        
+        if safe_options:
+            # Ordiniamo per probabilità più alta
+            safe_options.sort(key=lambda x: x[1], reverse=True)
+            best = safe_options[0]
+            
+            cons = best[0]
+            prob_win = best[1]
+            qmin = best[2] * marg
         
         return {
-            "Match": f"{h} - {a}", "p1": ph, "px": pd, "p2": pa, 
-            "Tip": cons, "Quota": qmin, "c": h, "o": a, "ProbWin": prob_win
+            "Match": f"{h} - {a}", 
+            "p1": ph, "px": pd, "p2": pa,
+            "p_o25": prob_o25, "p_u25": prob_u25, "p_gg": prob_gg,
+            "Tip": cons, "Quota": qmin, "ProbWin": prob_win, "c": h, "o": a
         }
     except: return None
 
 # ==============================================================================
-# UI: INTERFACCIA COMPLETA
+# UI
 # ==============================================================================
-st.title("💎 AI Betting Elite")
+st.title("🔥 AI Betting Pro 4.0")
 
-# INPUT BUDGET (Sempre visibile)
-with st.expander("💰 Il tuo Budget (Bankroll)", expanded=False):
-    bankroll = st.number_input("Inserisci Cassa Totale (€):", value=100.0, step=10.0)
+with st.expander("💰 Bankroll Setting", expanded=False):
+    bankroll = st.number_input("Cassa Totale (€):", value=100.0, step=10.0)
 
-tab_auto, tab_manual = st.tabs(["📡 RADAR AUTO", "🛠️ SCHEDINA"])
+tab_auto, tab_manual = st.tabs(["RADAR AUTO", "SCHEDINA"])
 
-# --- TAB 1: AUTO ---
+# --- TAB AUTO ---
 with tab_auto:
-    st.caption("Scansione automatica partite")
     c1, c2 = st.columns(2)
     t_scan = None
     if c1.button("OGGI", use_container_width=True, type="primary"): t_scan = 0
@@ -164,7 +196,7 @@ with tab_auto:
     
     if t_scan is not None:
         target_d = (datetime.now() + timedelta(days=t_scan)).strftime('%Y-%m-%d')
-        st.info(f"Analisi del {target_d}...")
+        st.info(f"Analisi multi-mercato del {target_d}...")
         
         results = []
         bar = st.progress(0)
@@ -195,9 +227,8 @@ with tab_auto:
         bar.empty()
         
         if results:
-            # Ordina per sicurezza
             results.sort(key=lambda x: x['ProbWin'], reverse=True)
-            st.success(f"Trovate {len(results)} Value Bets!")
+            st.success(f"Trovate {len(results)} opportunità.")
             
             for res in results:
                 with st.container(border=True):
@@ -205,40 +236,44 @@ with tab_auto:
                     st.markdown(f"**{res['Match']}**")
                     st.caption(f"{res['Lega']}")
                     
-                    # Row: Dati + Stake Box
-                    c_info, c_stake = st.columns([3, 1])
-                    with c_info:
+                    # Main Info
+                    c_main, c_stake = st.columns([3,1])
+                    with c_main:
                         if "PUNTA" in res['Tip']: st.success(f"**{res['Tip']}**")
-                        elif "RISCHIO" in res['Tip']: st.warning(f"**{res['Tip']}**")
-                        else: st.error(res['Tip'])
-                        st.metric("Quota Minima", f"{res['Quota']:.2f}")
+                        elif "OVER" in res['Tip'] or "GOAL" in res['Tip']: st.info(f"**{res['Tip']}**")
+                        elif "UNDER" in res['Tip']: st.error(f"**{res['Tip']}**")
+                        else: st.warning(res['Tip'])
+                        st.caption(f"Quota Minima > {res['Quota']:.2f}")
                     
                     with c_stake:
-                        # Box della Puntata
-                        stake_val = res['Stake'] if res['Stake'] > 0 else 0
-                        st.markdown(f"""
-                        <div class="stake-box">
-                            <div class="stake-title">PUNTA</div>
-                            <div class="stake-value">€{stake_val}</div>
-                        </div>
-                        """, unsafe_allow_html=True)
+                        val = res['Stake'] if res['Stake'] > 0 else 0
+                        st.markdown(f"""<div class="stake-box"><div class="stake-title">PUNTA</div><div class="stake-value">€{val}</div></div>""", unsafe_allow_html=True)
                     
                     st.divider()
                     
-                    # Row: Barre Colorate (Feature Richiesta)
-                    st.caption("Probabilità AI:")
-                    st.progress(res['p1'], f"1 (Casa): {res['p1']*100:.1f}%")
-                    st.progress(res['px'], f"X (Pareggio): {res['px']*100:.1f}%")
-                    st.progress(res['p2'], f"2 (Ospite): {res['p2']*100:.1f}%")
-        else:
-            st.warning("Nessuna occasione trovata per questa data.")
+                    # Dettagli 360
+                    st.markdown("###### 📊 Analisi Statistica")
+                    # 1X2
+                    st.caption("Esito Finale")
+                    c1, c2, c3 = st.columns(3)
+                    c1.progress(res['p1'], f"1: {res['p1']*100:.0f}%")
+                    c2.progress(res['px'], f"X: {res['px']*100:.0f}%")
+                    c3.progress(res['p2'], f"2: {res['p2']*100:.0f}%")
+                    
+                    # GOALS
+                    st.caption("Gol & Spettacolo")
+                    g1, g2 = st.columns(2)
+                    g1.progress(res['p_o25'], f"Over 2.5: {res['p_o25']*100:.0f}%")
+                    g2.progress(res['p_gg'], f"Goal: {res['p_gg']*100:.0f}%")
 
-# --- TAB 2: MANUALE ---
+        else:
+            st.warning("Nessuna occasione trovata.")
+
+# --- TAB MANUALE ---
 with tab_manual:
     names = [d['nome'] for d in DATABASE]
     sel_name = st.selectbox("Seleziona Campionato", names)
     
-    # Caricamento automatico
     if st.session_state['loaded_league'] != sel_name:
         with st.spinner("Loading..."):
             sel_db = next(d for d in DATABASE if d['nome'] == sel_name)
@@ -278,42 +313,37 @@ with tab_manual:
                     st.session_state['cart'].pop(i)
                     st.rerun()
 
-        if st.button("🚀 ANALIZZA E CALCOLA PUNTATE", type="primary", use_container_width=True):
+        if st.button("🚀 ANALIZZA TUTTO", type="primary", use_container_width=True):
              for item in st.session_state['cart']:
                 res = analyze(item['c'], item['o'], item['stats'], item['ah'], item['aa'])
                 if res:
                     res['Stake'] = calculate_stake(res['ProbWin'], res['Quota'], bankroll)
                     with st.container(border=True):
-                        # Header Card
                         st.markdown(f"### {res['c']} vs {res['o']}")
-                        st.caption(res['Lega'] if 'Lega' in res else item['lega'])
                         
-                        # Body Card
-                        c_res, c_money = st.columns([2, 1])
-                        with c_res:
+                        # Main Box
+                        c_tip, c_money = st.columns([3,1])
+                        with c_tip:
                             if "PUNTA" in res['Tip']: st.success(f"**{res['Tip']}**")
-                            elif "RISCHIO" in res['Tip']: st.warning(f"**{res['Tip']}**")
-                            else: st.error("NO BET")
-                            st.caption(f"Quota Minima > {res['Quota']:.2f}")
+                            elif "OVER" in res['Tip']: st.info(f"**{res['Tip']}**")
+                            elif "UNDER" in res['Tip']: st.error(f"**{res['Tip']}**")
+                            else: st.warning(res['Tip'])
+                            st.caption(f"Quota > {res['Quota']:.2f}")
                         
                         with c_money:
-                            # Box Puntata
-                            val = res['Stake'] if res['Stake'] > 0 else 0
-                            st.markdown(f"""
-                            <div class="stake-box">
-                                <div class="stake-title">PUNTA</div>
-                                <div class="stake-value">€{val}</div>
-                            </div>
-                            """, unsafe_allow_html=True)
+                             val = res['Stake'] if res['Stake'] > 0 else 0
+                             st.markdown(f"""<div class="stake-box"><div class="stake-title">PUNTA</div><div class="stake-value">€{val}</div></div>""", unsafe_allow_html=True)
                         
-                        # Footer Card (Barre)
                         st.divider()
-                        st.progress(res['p1'], f"1 ({res['p1']*100:.0f}%)")
-                        st.progress(res['px'], f"X ({res['px']*100:.0f}%)")
-                        st.progress(res['p2'], f"2 ({res['p2']*100:.0f}%)")
+                        
+                        # Dettagli
+                        g1, g2 = st.columns(2)
+                        g1.progress(res['p_o25'], f"Over 2.5: {res['p_o25']*100:.0f}%")
+                        g2.progress(res['p_gg'], f"Goal: {res['p_gg']*100:.0f}%")
+                        
+                        st.caption("1X2:")
+                        st.progress(res['p1'], f"1: {res['p1']*100:.0f}%")
                             
         if st.button("Svuota tutto", use_container_width=True):
             st.session_state['cart'] = []
             st.rerun()
-    else:
-        st.info("Il ticket è vuoto.")
