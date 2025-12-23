@@ -7,122 +7,58 @@ import io
 from datetime import datetime, timedelta
 
 # ==============================================================================
-# CONFIGURAZIONE PAGINA
+# CONFIGURAZIONE & STILE NEON
 # ==============================================================================
 DEFAULT_BUDGET = 100.0
 
-st.set_page_config(page_title="BETTING MASTER", page_icon="⚽", layout="centered")
+st.set_page_config(page_title="BETTING PRO", page_icon="⚽", layout="centered")
 
-# ==============================================================================
-# CSS PREMIUM (Bottoni App + Card Pulite)
-# ==============================================================================
 st.markdown("""
 <style>
-    /* Nascondi menu standard */
+    /* Sfondo App */
+    .stApp { background-color: #000000; }
+    
+    /* Nascondi elementi inutili */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
     [data-testid="stSidebar"] {display: none;}
-    
-    /* SFONDO */
-    .stApp { background-color: #0e1117; }
 
-    /* --- STILE BOTTONI (TAB) --- */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
-        background-color: transparent;
-        padding-bottom: 10px;
-    }
+    /* STILE TAB (Bottoni in alto) */
+    .stTabs [data-baseweb="tab-list"] { gap: 8px; background-color: #000; padding: 10px; }
     .stTabs [data-baseweb="tab"] {
-        height: 60px; /* Alti e comodi */
-        background-color: #1f1f1f;
-        border: 1px solid #333;
-        border-radius: 10px;
-        color: #888;
-        font-size: 16px;
-        font-weight: 700;
-        flex: 1; /* Occupa tutto lo spazio disponibile */
-        display: flex;
-        align-items: center;
-        justify-content: center;
+        height: 55px; background-color: #1a1a1a; border: 1px solid #333;
+        border-radius: 8px; color: #888; font-weight: bold; font-size: 16px;
     }
     .stTabs [aria-selected="true"] {
-        background-color: #00d26a !important; /* VERDE ACCESO */
-        color: #000 !important;
-        border: none;
-        box-shadow: 0 0 15px rgba(0, 210, 106, 0.3);
+        background-color: #00ff00 !important; color: #000 !important; border: none;
     }
 
-    /* --- CARD RISULTATO --- */
-    .result-container {
-        background-color: #161616;
-        border: 1px solid #333;
-        border-radius: 15px;
-        padding: 20px;
-        margin-bottom: 20px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    /* TRUCCO PER I METRIC (NUMERI GRANDI) */
+    [data-testid="stMetricLabel"] {
+        font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: 1px;
     }
-    
-    .match-title {
-        color: white;
-        font-size: 18px;
-        font-weight: bold;
-        border-bottom: 1px solid #333;
-        padding-bottom: 10px;
-        margin-bottom: 15px;
-        text-align: center;
+    [data-testid="stMetricValue"] {
+        font-size: 28px; font-weight: 900; color: #fff;
+    }
+    /* Colora il valore del primo metric (Consiglio) in Verde Neon */
+    div[data-testid="column"]:nth-of-type(1) [data-testid="stMetricValue"] {
+        color: #00ff00 !important; text-shadow: 0 0 10px rgba(0,255,0,0.4);
+    }
+    /* Colora il valore del secondo metric (Soldi) in Bianco */
+    div[data-testid="column"]:nth-of-type(2) [data-testid="stMetricValue"] {
+        color: #ffffff !important;
     }
 
-    .flex-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 15px;
+    /* BORDI DEI CONTENITORI */
+    [data-testid="stVerticalBlock"] > [style*="flex-direction: column;"] > [data-testid="stVerticalBlock"] {
+        background-color: #111; border: 1px solid #222; border-radius: 12px; padding: 15px;
     }
-
-    /* Box del Consiglio */
-    .tip-box {
-        background-color: #1e1e1e;
-        border-left: 5px solid #00d26a;
-        padding: 10px;
-        flex: 2;
-        border-radius: 5px;
-    }
-    .tip-label { font-size: 10px; color: #aaa; text-transform: uppercase; }
-    .tip-main { font-size: 22px; font-weight: 900; color: #00d26a; margin-top: 2px; }
-    .tip-sub { font-size: 12px; color: #ccc; }
-
-    /* Box dei Soldi */
-    .stake-box {
-        background-color: #eee;
-        color: #000;
-        padding: 10px;
-        border-radius: 8px;
-        flex: 1;
-        text-align: center;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-    }
-    .stake-label { font-size: 9px; font-weight: bold; text-transform: uppercase; }
-    .stake-val { font-size: 20px; font-weight: 900; }
-
-    /* Statistiche in basso */
-    .xg-stats {
-        display: flex;
-        justify-content: space-between;
-        margin-top: 15px;
-        padding-top: 10px;
-        border-top: 1px solid #333;
-        font-size: 12px;
-        color: #888;
-    }
-    .xg-val { color: #fff; font-weight: bold; }
 </style>
 """, unsafe_allow_html=True)
 
 # ==============================================================================
-# LOGICA MATEMATICA
+# LOGICA (Invariata)
 # ==============================================================================
 DATABASE = [
     {"id": "I1", "nome": "🇮🇹 Serie A", "history": "https://www.football-data.co.uk/mmz4281/2526/I1.csv", "fixture": "https://fixturedownload.com/download/csv/2025/italy-serie-a-2025.csv"},
@@ -186,12 +122,12 @@ def analyze_math(h, a, stats, ah, aa):
         p_gg = (1 - poisson.pmf(0, lh)) * (1 - poisson.pmf(0, la))
         
         options = [
-            {"Tip": "PUNTA 1", "Prob": ph, "Q": 1/ph if ph>0 else 0},
-            {"Tip": "PUNTA 2", "Prob": pa, "Q": 1/pa if pa>0 else 0},
-            {"Tip": "RISCHIO X", "Prob": pd, "Q": 1/pd if pd>0 else 0},
-            {"Tip": "OVER 2.5", "Prob": p_o25, "Q": 1/p_o25 if p_o25>0 else 0},
-            {"Tip": "UNDER 2.5", "Prob": p_u25, "Q": 1/p_u25 if p_u25>0 else 0},
-            {"Tip": "GOAL (GG)", "Prob": p_gg, "Q": 1/p_gg if p_gg>0 else 0}
+            {"Tip": "PUNTA 1", "Prob": ph, "Q": 1/ph},
+            {"Tip": "PUNTA 2", "Prob": pa, "Q": 1/pa},
+            {"Tip": "RISCHIO X", "Prob": pd, "Q": 1/pd},
+            {"Tip": "OVER 2.5", "Prob": p_o25, "Q": 1/p_o25},
+            {"Tip": "UNDER 2.5", "Prob": p_u25, "Q": 1/p_u25},
+            {"Tip": "GOAL", "Prob": p_gg, "Q": 1/p_gg}
         ]
         
         valid = [o for o in options if o['Prob'] > (0.33 if "X" in o['Tip'] else 0.50)]
@@ -201,10 +137,7 @@ def analyze_math(h, a, stats, ah, aa):
         else:
             best = {"Tip": "NO BET", "Prob": 0, "Q": 0}
 
-        return {
-            "c": h, "o": a, "Best": best, "All": options,
-            "xG_H": lh, "xG_A": la
-        }
+        return {"c": h, "o": a, "Best": best, "All": options, "xG_H": lh, "xG_A": la}
     except: return None
 
 def calculate_stake(prob, quota, bankroll):
@@ -218,13 +151,11 @@ def calculate_stake(prob, quota, bankroll):
 # ==============================================================================
 # UI
 # ==============================================================================
-st.title("⚽ BETTING MASTER")
+st.title("⚽ BETTING PRO")
 
-# Input Budget Minimal
 bankroll = st.number_input("Tuo Budget (€)", value=DEFAULT_BUDGET, step=10.0)
 
-# TABS PRINCIPALI (GIGANTI)
-tab_radar, tab_cart = st.tabs(["📡 RADAR AUTO", "📝 SCHEDINA"])
+tab_radar, tab_cart = st.tabs(["RADAR AUTO", "SCHEDINA"])
 
 # --- TAB RADAR ---
 with tab_radar:
@@ -235,7 +166,7 @@ with tab_radar:
     
     if t_scan is not None:
         target_d = (datetime.now() + timedelta(days=t_scan)).strftime('%Y-%m-%d')
-        st.info(f"Scansione del {target_d}...")
+        st.info(f"Analisi {target_d}...")
         found = False
         
         for db in DATABASE:
@@ -261,23 +192,14 @@ with tab_radar:
                                     found = True
                                     best = res['Best']
                                     
-                                    # CARD RISULTATO (HTML PURO)
-                                    st.markdown(f"""
-                                    <div class="result-container">
-                                        <div class="match-title">{c} <span style="color:#666">vs</span> {o}</div>
-                                        <div class="flex-row">
-                                            <div class="tip-box">
-                                                <div class="tip-label">CONSIGLIO</div>
-                                                <div class="tip-main">{best['Tip']}</div>
-                                                <div class="tip-sub">Sicurezza: {best['Prob']*100:.1f}%</div>
-                                            </div>
-                                            <div class="stake-box">
-                                                <div class="stake-label">QUOTA (EST)</div>
-                                                <div class="stake-val">{best['Q']:.2f}</div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    """, unsafe_allow_html=True)
+                                    # BOX SICURO (USIAMO CONTAINER NATIVO)
+                                    with st.container(border=True):
+                                        st.markdown(f"**{c} vs {o}**")
+                                        st.caption(db['nome'])
+                                        k1, k2 = st.columns(2)
+                                        k1.metric("CONSIGLIO", best['Tip'], f"{best['Prob']*100:.0f}%")
+                                        k2.metric("QUOTA EST.", f"{best['Q']:.2f}")
+
         if not found: st.warning("Nessuna occasione sicura trovata.")
 
 # --- TAB CARRELLO ---
@@ -286,7 +208,7 @@ with tab_cart:
     sel = st.selectbox("Campionato", names)
     
     if st.session_state['loaded_league'] != sel:
-        with st.spinner("Caricamento..."):
+        with st.spinner("Loading..."):
             db = next(d for d in DATABASE if d['nome'] == sel)
             df = get_data(db['history'])
             if df is not None:
@@ -318,30 +240,29 @@ with tab_cart:
                     best = res['Best']
                     stake = calculate_stake(best['Prob'], best['Q']*1.05, bankroll)
                     
-                    # CARD FINALE PULITA
-                    st.markdown(f"""
-                    <div class="result-container">
-                        <div class="match-title">{item['c']} <span style="color:#666">vs</span> {item['o']}</div>
+                    # === QUI LA MAGIA ===
+                    # Usiamo st.container e st.metric invece dell'HTML
+                    # Questo previene al 100% la stampa del codice
+                    with st.container(border=True):
+                        st.markdown(f"#### {item['c']} <span style='color:#888'>vs</span> {item['o']}", unsafe_allow_html=True)
                         
-                        <div class="flex-row">
-                            <div class="tip-box">
-                                <div class="tip-label">MIGLIOR SCELTA</div>
-                                <div class="tip-main">{best['Tip']}</div>
-                                <div class="tip-sub">Probabilità: {best['Prob']*100:.1f}%</div>
-                            </div>
-                            
-                            <div class="stake-box">
-                                <div class="stake-label">PUNTA</div>
-                                <div class="stake-val">€{stake}</div>
-                            </div>
-                        </div>
+                        col_tip, col_stake = st.columns(2)
                         
-                        <div class="xg-stats">
-                            <div>xG Casa: <span class="xg-val">{res['xG_H']:.2f}</span></div>
-                            <div>xG Ospite: <span class="xg-val">{res['xG_A']:.2f}</span></div>
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                        # Colonna Sinistra: Consiglio (Verde Neon grazie al CSS in alto)
+                        col_tip.metric(
+                            label="MIGLIOR SCELTA",
+                            value=best['Tip'],
+                            delta=f"Prob: {best['Prob']*100:.1f}%"
+                        )
+                        
+                        # Colonna Destra: Soldi
+                        col_stake.metric(
+                            label="PUNTA",
+                            value=f"€{stake}",
+                            delta=f"Quota: {best['Q']:.2f}"
+                        )
+                        
+                        st.markdown(f"<div style='font-size:12px; color:#666'>xG Casa: {res['xG_H']:.2f} | xG Ospite: {res['xG_A']:.2f}</div>", unsafe_allow_html=True)
 
         if st.button("Svuota tutto", use_container_width=True):
             st.session_state['cart'] = []
