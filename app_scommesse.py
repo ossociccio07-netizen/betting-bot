@@ -12,13 +12,16 @@ from duckduckgo_search import DDGS
 # ==============================================================================
 # ⚙️ CONFIGURAZIONE UTENTE
 # ==============================================================================
+# 1. INCOLLA QUI LA TUA API KEY DI GROQ
 GROQ_API_KEY = "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" 
+
+# 2. BUDGET INIZIALE
 DEFAULT_BUDGET = 100.0
 
 # ==============================================================================
-# STILE GRAFICO "CLEAN"
+# STILE GRAFICO "TOTAL CONTROL"
 # ==============================================================================
-st.set_page_config(page_title="AI Betting BOSS", page_icon="🦍", layout="centered")
+st.set_page_config(page_title="AI Betting ULTIMATE", page_icon="🧠", layout="centered")
 
 st.markdown("""
 <style>
@@ -33,36 +36,37 @@ st.markdown("""
         color: #888; flex: 1; border: 1px solid #333; font-weight: bold;
     }
     .stTabs [aria-selected="true"] {
-        background-color: #00ff88 !important; color: black !important; border: none;
+        background-color: #00d26a !important; color: black !important; border: none;
     }
     
-    /* Box Risultato Finale */
-    .final-tip-box {
-        background: linear-gradient(45deg, #004d00, #006600);
-        padding: 15px; border-radius: 10px; text-align: center;
-        border: 1px solid #00ff88; margin-bottom: 10px;
-        box-shadow: 0 0 10px rgba(0, 255, 136, 0.2);
+    /* Box Verdetto Finale */
+    .verdict-box {
+        background: linear-gradient(135deg, #1e1e1e 0%, #0d0d0d 100%);
+        border: 2px solid #00d26a; border-radius: 12px; padding: 20px;
+        text-align: center; margin-bottom: 20px;
+        box-shadow: 0 4px 15px rgba(0, 210, 106, 0.2);
     }
-    .final-tip-label { font-size: 12px; color: #aaffcc; text-transform: uppercase; letter-spacing: 2px; }
-    .final-tip-value { font-size: 28px; font-weight: 900; color: #fff; margin: 5px 0; }
+    .verdict-title { font-size: 14px; color: #00d26a; letter-spacing: 2px; text-transform: uppercase; font-weight: bold; }
+    .verdict-main { font-size: 32px; color: #fff; font-weight: 900; margin: 10px 0; }
+    .verdict-stake { background-color: #00d26a; color: #000; padding: 5px 15px; border-radius: 20px; font-weight: bold; font-size: 18px; display: inline-block; }
     
-    /* Box Soldi */
-    .money-box {
-        background-color: #1a1a1a; border: 1px solid #333; border-radius: 10px;
-        padding: 15px; text-align: center; height: 100%;
+    /* Box Statistiche */
+    .stats-container {
+        background-color: #222; border-radius: 10px; padding: 15px; margin-top: 10px; border: 1px solid #333;
     }
-    .money-val { font-size: 24px; color: #00ff88; font-weight: bold; }
+    .stat-row { margin-bottom: 10px; }
+    .stat-label { font-size: 12px; color: #aaa; margin-bottom: 2px; }
     
     /* Box News */
-    .news-report {
-        font-family: 'Courier New', monospace; font-size: 13px; color: #ddd;
-        background-color: #222; padding: 15px; border-radius: 8px; border-left: 3px solid #ffaa00;
+    .news-box {
+        font-size: 13px; background-color: #2d2d2d; padding: 15px; border-radius: 8px;
+        border-left: 4px solid #ffaa00; margin-top: 15px; color: #ddd;
     }
 </style>
 """, unsafe_allow_html=True)
 
 # ==============================================================================
-# MOTORE DATI & MATEMATICA
+# MOTORE DATI
 # ==============================================================================
 DATABASE = [
     {"id": "I1", "nome": "🇮🇹 Serie A", "history": "https://www.football-data.co.uk/mmz4281/2526/I1.csv", "fixture": "https://fixturedownload.com/download/csv/2025/italy-serie-a-2025.csv"},
@@ -122,19 +126,24 @@ def analyze_math(h, a, stats, ah, aa):
                 elif i==j: pd+=p
                 else: pa+=p
         
+        # Over/Under
         p_o25 = 1 - (poisson.pmf(0, lh+la) + poisson.pmf(1, lh+la) + poisson.pmf(2, lh+la))
+        p_u25 = 1 - p_o25
+        
+        # BTTS (Goal)
         p_gg = (1 - poisson.pmf(0, lh)) * (1 - poisson.pmf(0, la))
         
+        # Scelta Migliore (Math)
         options = [
             ("PUNTA 1", ph, 1/ph if ph>0 else 0), 
             ("PUNTA 2", pa, 1/pa if pa>0 else 0), 
             ("RISCHIO X", pd, 1/pd if pd>0 else 0),
             ("OVER 2.5", p_o25, 1/p_o25 if p_o25>0 else 0), 
-            ("UNDER 2.5", 1-p_o25, 1/(1-p_o25) if 1-p_o25>0 else 0), 
-            ("GOAL", p_gg, 1/p_gg if p_gg>0 else 0)
+            ("UNDER 2.5", p_u25, 1/p_u25 if p_u25>0 else 0),
         ]
         
-        safe = [o for o in options if o[1] > 0.50]
+        # Filtro Safe Math
+        safe = [o for o in options if o[1] > 0.50 or (o[0]=="RISCHIO X" and o[1]>0.32)]
         if safe:
             safe.sort(key=lambda x: x[1], reverse=True)
             best = safe[0]
@@ -143,89 +152,94 @@ def analyze_math(h, a, stats, ah, aa):
             tip, prob, qmin = "NO BET", 0, 0
 
         return {
-            "c": h, "o": a, "Tip": tip, "ProbWin": prob, "Quota": qmin,
-            "p1": ph, "px": pd, "p2": pa
+            "c": h, "o": a, 
+            "Math_Tip": tip, "Math_Prob": prob, "Math_Quota": qmin,
+            "p1": ph, "px": pd, "p2": pa,
+            "p_o25": p_o25, "p_u25": p_u25, "p_gg": p_gg
         }
     except: return None
 
 # ==============================================================================
-# 🧠 IL CERVELLO DECISIONALE (AI + WEB)
+# RICERCA WEB & AI
 # ==============================================================================
-def search_news(team1, team2):
-    """Cerca su DuckDuckGo e riassume i titoli"""
-    q = f"{team1} vs {team2} team news injuries lineups prediction"
+def search_news_sherlock(team1, team2):
+    q = f"{team1} {team2} injuries suspensions team news lineup prediction December 2025"
     try:
-        res = DDGS().text(q, max_results=3)
-        return "\n".join([f"- {r['body']}" for r in res])[:1200]
-    except: return "Nessuna news live trovata."
+        res = DDGS().text(q, max_results=4)
+        return "\n".join([f"- {r['body']}" for r in res])[:2500] if res else "Nessuna news live."
+    except: return "Errore ricerca news."
 
 def ai_final_decision(match_data, math_stake, news_text):
-    """L'IA prende Math + News e decide il verdetto finale"""
-    if not GROQ_API_KEY or "INCOLLA" in GROQ_API_KEY: return "ERR_KEY", 0, "Manca API Key"
+    if not GROQ_API_KEY or "INCOLLA" in GROQ_API_KEY: return match_data['Math_Tip'], math_stake, "Manca API Key."
     
     client = Groq(api_key=GROQ_API_KEY)
     
     prompt = f"""
-    Sei il Boss delle Scommesse. Hai due input:
-    1. MATEMATICA: Dice {match_data['Tip']} (Quota {match_data['Quota']:.2f}). Puntata Math: €{math_stake}.
-    2. NEWS LIVE: {news_text}
+    Sei un Betting Manager. Analizza questi dati per {match_data['c']} vs {match_data['o']}.
+
+    1. DATI MATEMATICI (Poisson):
+    - Miglior scelta matematica: {match_data['Math_Tip']} (Prob: {match_data['Math_Prob']*100:.1f}%)
+    - Prob 1X2: Casa {match_data['p1']*100:.0f}%, X {match_data['px']*100:.0f}%, Ospite {match_data['p2']*100:.0f}%
+    - Prob Gol: Over 2.5 {match_data['p_o25']*100:.0f}%, Under 2.5 {match_data['p_u25']*100:.0f}%
+    
+    2. NEWS LIVE (WEB):
+    {news_text}
     
     COMPITO:
-    Analizza le news (infortuni, assenze AFCON, turnover).
-    Se le news sono brutte per la scommessa matematica, CAMBIA il pronostico o abbassa la puntata.
-    Se le news confermano, mantieni.
+    Incrocia Matematica e News. 
+    - Se le news riportano infortuni pesanti (Top Player), DEVI cambiare il pronostico o ridurre drasticamente lo stake.
+    - Se la matematica dice "PUNTA 1" ma mancano i bomber di casa, cambia in "UNDER 2.5" o "NO BET".
     
-    OUTPUT RIGIDO (Non scrivere altro):
-    TIP: [Il tuo pronostico finale, es: OVER 2.5 o UNDER 2.5 o PUNTA 1]
-    STAKE: [La nuova puntata in Euro, es: 3.50]
-    REASON: [Spiegazione breve con nomi giocatori e emoji. Max 2 righe]
+    OUTPUT JSON FORMAT (Solo testo):
+    VERDETTO: [Esito Finale, es: OVER 2.5]
+    STAKE: [Euro, es: 5.50]
+    ANALISI: [Spiegazione logica. Cita i giocatori assenti se ci sono.]
     """
     
     try:
         resp = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.5
+            temperature=0.4
         )
         content = resp.choices[0].message.content
         
-        # Parsing manuale della risposta
-        final_tip = "N/A"
+        final_tip = match_data['Math_Tip']
         final_stake = math_stake
-        reason = "Analisi non disponibile."
+        reason = "Analisi standard."
         
         for line in content.split('\n'):
-            if "TIP:" in line: final_tip = line.replace("TIP:", "").strip()
+            if "VERDETTO:" in line: final_tip = line.replace("VERDETTO:", "").strip()
             if "STAKE:" in line: 
                 try:
                     s_str = line.replace("STAKE:", "").replace("€", "").strip()
                     final_stake = float(re.findall(r"\d+\.\d+", s_str)[0])
                 except: pass
-            if "REASON:" in line: reason = line.replace("REASON:", "").strip()
+            if "ANALISI:" in line: reason = line.replace("ANALISI:", "").strip()
             
         return final_tip, final_stake, reason
     except Exception as e:
-        return match_data['Tip'], math_stake, f"Errore AI: {e}"
+        return match_data['Math_Tip'], math_stake, f"Errore AI: {e}"
 
 def calculate_stake(prob, quota, bankroll):
     try:
         if quota <= 1: return 0
         f = ((quota - 1) * prob - (1 - prob)) / (quota - 1)
-        stake = bankroll * (f * 0.20) # Molto prudente
+        stake = bankroll * (f * 0.20)
         return round(max(0, stake), 2)
     except: return 0
 
 # ==============================================================================
 # UI PRINCIPALE
 # ==============================================================================
-st.title("🦍 AI Betting BOSS v7")
+st.title("🧠 AI Betting ULTIMATE")
 
-with st.expander("💰 Bankroll (Budget)", expanded=False):
-    bankroll = st.number_input("Cassa (€):", value=DEFAULT_BUDGET, step=10.0)
+with st.expander("💰 Bankroll Manager", expanded=False):
+    bankroll = st.number_input("Cassa Totale (€):", value=DEFAULT_BUDGET, step=10.0)
 
-tab_radar, tab_cart = st.tabs(["RADAR VELOCE", "CARRELLO INTELLIGENTE"])
+tab_radar, tab_cart = st.tabs(["RADAR VELOCE", "CARRELLO PROFONDO"])
 
-# --- TAB 1: RADAR (Solo Matematica Veloce) ---
+# --- RADAR ---
 with tab_radar:
     c1, c2 = st.columns(2)
     t_scan = None
@@ -234,15 +248,13 @@ with tab_radar:
     
     if t_scan is not None:
         target_d = (datetime.now() + timedelta(days=t_scan)).strftime('%Y-%m-%d')
-        st.info(f"Scansione matematica del {target_d}...")
-        
+        st.info(f"Scan {target_d} (Solo Matematica)...")
         for db in DATABASE:
             df_cal = get_data(db['fixture'])
             if df_cal is not None:
                 cd = 'Date' if 'Date' in df_cal.columns else 'Match Date'
                 df_cal[cd] = pd.to_datetime(df_cal[cd], errors='coerce')
                 matches = df_cal[df_cal[cd].dt.strftime('%Y-%m-%d') == target_d]
-                
                 if not matches.empty:
                     df_h = get_data(db['history'])
                     if df_h is not None:
@@ -253,21 +265,16 @@ with tab_radar:
                                 o = r.get('Away Team', r.get('AwayTeam','')).strip()
                                 m = {"Man Utd":"Man United", "Utd":"United"}
                                 c, o = m.get(c,c), m.get(o,o)
-                                
                                 res = analyze_math(c, o, stats, ah, aa)
-                                if res and res['ProbWin'] > 0.55:
-                                    stake = calculate_stake(res['ProbWin'], res['Quota'], bankroll)
+                                if res and res['Math_Prob'] > 0.55:
                                     with st.container(border=True):
                                         st.markdown(f"**{c} vs {o}**")
-                                        c_t, c_s = st.columns([2,1])
-                                        c_t.info(f"Math: {res['Tip']}")
-                                        c_s.markdown(f"**€{stake}**")
+                                        st.caption(f"Math: {res['Math_Tip']} ({res['Math_Prob']*100:.0f}%)")
 
-# --- TAB 2: CARRELLO (AI + NEWS REALI) ---
+# --- CARRELLO ---
 with tab_cart:
     names = [d['nome'] for d in DATABASE]
     sel = st.selectbox("Campionato", names)
-    
     if st.session_state['loaded_league'] != sel:
         with st.spinner("Loading..."):
             db = next(d for d in DATABASE if d['nome'] == sel)
@@ -281,7 +288,6 @@ with tab_cart:
         c1, c2 = st.columns(2)
         h = c1.selectbox("Casa", st.session_state['cur_teams'])
         a = c2.selectbox("Ospite", st.session_state['cur_teams'], index=1)
-        
         if st.button("➕ AGGIUNGI", use_container_width=True):
             if h != a:
                 st.session_state['cart'].append({
@@ -294,8 +300,6 @@ with tab_cart:
     
     if st.session_state['cart']:
         st.subheader(f"🛒 Carrello ({len(st.session_state['cart'])})")
-        
-        # Lista Carrello
         for i, item in enumerate(st.session_state['cart']):
             c_txt, c_del = st.columns([5,1])
             c_txt.text(f"{item['c']} vs {item['o']}")
@@ -303,55 +307,62 @@ with tab_cart:
                 st.session_state['cart'].pop(i)
                 st.rerun()
 
-        # BOTTONE MAGICO
-        if st.button("🧠 ELABORA VERDETTO FINALE (MATH + NEWS)", type="primary", use_container_width=True):
+        if st.button("🧠 ANALIZZA TUTTO (MATH + WEB + AI)", type="primary", use_container_width=True):
             
             bar = st.progress(0)
             for idx, item in enumerate(st.session_state['cart']):
                 bar.progress((idx+1)/len(st.session_state['cart']))
                 
-                # 1. Matematica Base
-                res_math = analyze_math(item['c'], item['o'], item['stats'], item['ah'], item['aa'])
-                
-                if res_math:
-                    math_stake = calculate_stake(res_math['ProbWin'], res_math['Quota'], bankroll)
+                # 1. MATH
+                res = analyze_math(item['c'], item['o'], item['stats'], item['ah'], item['aa'])
+                if res:
+                    math_stake = calculate_stake(res['Math_Prob'], res['Math_Quota'], bankroll)
                     
-                    # 2. Ricerca News
-                    news = search_news(item['c'], item['o'])
+                    # 2. WEB SEARCH
+                    news = search_news_sherlock(item['c'], item['o'])
                     
-                    # 3. Decisione AI
-                    final_tip, final_stake, reason = ai_final_decision(res_math, math_stake, news)
+                    # 3. AI JUDGE
+                    final_tip, final_stake, reason = ai_final_decision(res, math_stake, news)
                     
-                    # DISPLAY RISULTATO
+                    # 4. VISUALIZZAZIONE
                     st.markdown("---")
-                    st.subheader(f"{item['c']} - {item['o']}")
+                    st.markdown(f"### {item['c']} - {item['o']}")
                     st.caption(f"📍 {item['lega']}")
                     
-                    # BOX VERDE E BOX SOLDI
-                    c_tip, c_cash = st.columns([3, 1])
-                    with c_tip:
-                        st.markdown(f"""
-                        <div class="final-tip-box">
-                            <div class="final-tip-label">VERDETTO IA</div>
-                            <div class="final-tip-value">{final_tip}</div>
-                        </div>
-                        """, unsafe_allow_html=True)
+                    # VERDETTO FINALE
+                    st.markdown(f"""
+                    <div class="verdict-box">
+                        <div class="verdict-title">VERDETTO FINALE INTELLIGENTE</div>
+                        <div class="verdict-main">{final_tip}</div>
+                        <div class="verdict-stake">Punta: €{final_stake}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
                     
-                    with c_cash:
+                    # BOX ESPANDIBILE: DATI GREZZI + RAGIONAMENTO
+                    with st.expander("📊 Vedi Dati Matematici & Analisi News"):
+                        
+                        st.markdown("#### 1. Matematica Pura (Prima delle News)")
+                        st.info(f"Il modello Poisson consigliava: **{res['Math_Tip']}**")
+                        
+                        # Barre Probabilità
+                        st.markdown("**Probabilità 1X2:**")
+                        c1, c2, c3 = st.columns(3)
+                        c1.progress(res['p1'], f"1: {res['p1']*100:.0f}%")
+                        c2.progress(res['px'], f"X: {res['px']*100:.0f}%")
+                        c3.progress(res['p2'], f"2: {res['p2']*100:.0f}%")
+                        
+                        st.markdown("**Probabilità Gol:**")
+                        c4, c5 = st.columns(2)
+                        c4.progress(res['p_o25'], f"Over 2.5: {res['p_o25']*100:.0f}%")
+                        c5.progress(res['p_u25'], f"Under 2.5: {res['p_u25']*100:.0f}%")
+                        
+                        st.markdown("---")
+                        st.markdown("#### 2. Intelligence Report (AI)")
                         st.markdown(f"""
-                        <div class="money-box">
-                            <div style="font-size:10px; color:#888;">PUNTA</div>
-                            <div class="money-val">€{final_stake}</div>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    
-                    # EXPANDER CON SPIEGAZIONE
-                    with st.expander("🕵️ Perché questa scelta? (Clicca per leggere)"):
-                        st.markdown(f"""
-                        <div class="news-report">
-                        <b>🔍 ANALISI INTELLIGENCE:</b><br>
-                        {reason}<br><br>
-                        <i>(Base Matematica era: {res_math['Tip']} @ {res_math['Quota']:.2f})</i>
+                        <div class="news-box">
+                        <b>🕵️‍♂️ ANALISI INVESTIGATIVA:</b><br>{reason}<br><br>
+                        <b>🌐 FONTI NEWS:</b><br>
+                        <i style="font-size:11px">{news[:500]}...</i>
                         </div>
                         """, unsafe_allow_html=True)
             
