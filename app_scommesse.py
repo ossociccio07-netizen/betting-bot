@@ -5,223 +5,228 @@ from scipy.stats import poisson
 import requests
 import io
 from datetime import datetime, timedelta
-import difflib
+import difflib  # <--- LIBRERIA MAGICA PER I NOMI
 
 # ==============================================================================
-# CONFIGURAZIONE
+# CONFIGURAZIONE PAGINA
 # ==============================================================================
-st.set_page_config(page_title="BETTING PRO: HEAVY DUTY", page_icon="☣️", layout="centered")
+st.set_page_config(page_title="BETTING PRO ULTIMATE", page_icon="⚽", layout="centered")
+DEFAULT_BUDGET = 100.0
 
 st.markdown("""
 <style>
-    .stApp { background-color: #050505; color: #e0e0e0; }
-    h1, h2, h3 { color: #00ff00 !important; font-family: 'Courier New', monospace; }
-    .stButton>button { background-color: #111; color: #00ff00; border: 1px solid #00ff00; }
-    
-    div[data-testid="stVerticalBlock"] > [style*="flex-direction: column;"] > [data-testid="stVerticalBlock"] {
-        border: 1px solid #333; background-color: #111; padding: 15px; border-radius: 5px;
-    }
-    [data-testid="stMetricValue"] { font-family: monospace; color: #fff; }
+    .stApp { background-color: #000000; }
+    div[data-testid="column"] { text-align: center; }
+    [data-testid="stMetricValue"] { font-size: 22px; }
 </style>
 """, unsafe_allow_html=True)
 
 # ==============================================================================
-# DATI & NORMALIZZAZIONE
+# DATABASE (Uso i link che funzionavano per il manuale)
 # ==============================================================================
-TEAM_ALIAS = {
-    "Man Utd": "Man United", "Manchester Utd": "Man United", "Manchester United": "Man United",
-    "Man City": "Man City", "Manchester City": "Man City",
-    "Spurs": "Tottenham", "Tottenham Hotspur": "Tottenham",
-    "Newcastle": "Newcastle United", "West Ham": "West Ham United",
-    "Wolves": "Wolverhampton", "Brighton": "Brighton & Hove Albion",
-    "Nott'm Forest": "Nottm Forest", "Nottingham Forest": "Nottm Forest",
-    "Luton": "Luton Town", "Sheffield Utd": "Sheffield United",
-    "Inter": "Internazionale", "Milan": "AC Milan", "Roma": "AS Roma",
-    "Verona": "Hellas Verona", "Monza": "AC Monza",
-    "Ath Madrid": "Athletico Madrid", "Atletico Madrid": "Athletico Madrid",
-    "Betis": "Real Betis", "Sociedad": "Real Sociedad",
-    "Bayern Munich": "Bayern Munchen", "Dortmund": "Borussia Dortmund",
-    "Leverkusen": "Bayer Leverkusen", "Leipzig": "RB Leipzig"
-}
+DATABASE = [
+    {"id": "E0", "nome": "🇬🇧 Premier", "history": "https://www.football-data.co.uk/mmz4281/2526/E0.csv", "fixture": "https://fixturedownload.com/download/csv/2025/england-premier-league-2025.csv"},
+    {"id": "I1", "nome": "🇮🇹 Serie A", "history": "https://www.football-data.co.uk/mmz4281/2526/I1.csv", "fixture": "https://fixturedownload.com/download/csv/2025/italy-serie-a-2025.csv"},
+    {"id": "SP1", "nome": "🇪🇸 Liga", "history": "https://www.football-data.co.uk/mmz4281/2526/SP1.csv", "fixture": "https://fixturedownload.com/download/csv/2025/spain-la-liga-2025.csv"},
+    {"id": "D1", "nome": "🇩🇪 Bund", "history": "https://www.football-data.co.uk/mmz4281/2526/D1.csv", "fixture": "https://fixturedownload.com/download/csv/2025/germany-bundesliga-2025.csv"},
+    {"id": "F1", "nome": "🇫🇷 Ligue1", "history": "https://www.football-data.co.uk/mmz4281/2526/F1.csv", "fixture": "https://fixturedownload.com/download/csv/2025/france-ligue-1-2025.csv"},
+]
 
-def normalize_name(name):
-    name = str(name).strip()
-    return TEAM_ALIAS.get(name, name)
-
-# LINK STAGIONE 2024-2025
-LEAGUES = {
-    "🇬🇧 Premier League": {
-        "hist": ["https://www.football-data.co.uk/mmz4281/2425/E0.csv"],
-        "fix": ["https://fixturedownload.com/download/csv/2024/england-premier-league-2024.csv"]
-    },
-    "🇮🇹 Serie A": {
-        "hist": ["https://www.football-data.co.uk/mmz4281/2425/I1.csv"],
-        "fix": ["https://fixturedownload.com/download/csv/2024/italy-serie-a-2024.csv"]
-    },
-    "🇪🇸 La Liga": {
-        "hist": ["https://www.football-data.co.uk/mmz4281/2425/SP1.csv"],
-        "fix": ["https://fixturedownload.com/download/csv/2024/spain-la-liga-2024.csv"]
-    },
-    "🇩🇪 Bundesliga": {
-        "hist": ["https://www.football-data.co.uk/mmz4281/2425/D1.csv"],
-        "fix": ["https://fixturedownload.com/download/csv/2024/germany-bundesliga-2024.csv"]
-    },
-    "🇫🇷 Ligue 1": {
-        "hist": ["https://www.football-data.co.uk/mmz4281/2425/F1.csv"],
-        "fix": ["https://fixturedownload.com/download/csv/2024/france-ligue-1-2024.csv"]
-    }
-}
-
-@st.cache_data(ttl=600, show_spinner=False)
-def fetch_robust_data(url_list):
-    for url in url_list:
-        try:
-            r = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=5)
-            if r.status_code == 200:
-                df = pd.read_csv(io.StringIO(r.text))
-                if not df.empty: return df, url
-        except: continue
-    return None, None
+if 'cart' not in st.session_state: st.session_state['cart'] = []
+if 'loaded_league' not in st.session_state: st.session_state['loaded_league'] = None
 
 # ==============================================================================
-# CALCOLO
+# FUNZIONI DATI
 # ==============================================================================
-def calculate_poisson(h_team, a_team, df_hist):
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_data(url):
     try:
-        df = df_hist[['Date','HomeTeam','AwayTeam','FTHG','FTAG']].dropna()
-        df['Date'] = pd.to_datetime(df['Date'], dayfirst=True, errors='coerce')
-        
-        avg_h_goal = df['FTHG'].mean()
-        avg_a_goal = df['FTAG'].mean()
-        
-        stats_h = df[df['HomeTeam'] == h_team]['FTHG'].mean()
-        conc_h = df[df['HomeTeam'] == h_team]['FTAG'].mean()
-        stats_a = df[df['AwayTeam'] == a_team]['FTAG'].mean()
-        conc_a = df[df['AwayTeam'] == a_team]['FTHG'].mean()
-        
-        if pd.isna(stats_h) or pd.isna(stats_a): return None
+        r = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=5)
+        if r.status_code == 200: return pd.read_csv(io.StringIO(r.text))
+    except: return None
+    return None
 
-        att_h = stats_h / avg_h_goal
-        def_h = conc_h / avg_a_goal
-        att_a = stats_a / avg_a_goal
-        def_a = conc_a / avg_h_goal
+# --- NUOVA FUNZIONE INTELLIGENTE PER I NOMI ---
+def smart_match_name(name, known_teams):
+    # Cerca il nome più simile nella lista delle squadre conosciute
+    matches = difflib.get_close_matches(name, known_teams, n=1, cutoff=0.6)
+    if matches:
+        return matches[0]
+    return name
+
+def process_stats(df):
+    try:
+        df = df[['Date','HomeTeam','AwayTeam','FTHG','FTAG']].dropna()
+        df['Date'] = pd.to_datetime(df['Date'], dayfirst=True, errors='coerce')
+        avg_h, avg_a = df['FTHG'].mean(), df['FTAG'].mean()
         
-        lambda_h = att_h * def_a * avg_h_goal
-        lambda_a = att_a * def_h * avg_a_goal
+        # Pesi (60% Stagione / 40% Ultime 5)
+        PS, PF = 0.60, 0.40
         
-        ph, pd_draw, pa = 0, 0, 0
-        p_over25 = 0
+        sc = df.groupby('HomeTeam')[['FTHG','FTAG']].mean()
+        st = df.groupby('AwayTeam')[['FTAG','FTHG']].mean()
+        fc = df.groupby('HomeTeam')[['FTHG','FTAG']].apply(lambda x: x.tail(5).mean())
+        ft = df.groupby('AwayTeam')[['FTAG','FTHG']].apply(lambda x: x.tail(5).mean())
         
+        sc.columns, st.columns = ['H_GF_S','H_GS_S'], ['A_GF_S','A_GS_S']
+        fc.columns, ft.columns = ['H_GF_F','H_GS_F'], ['A_GF_F','A_GS_F']
+        
+        tot = pd.concat([sc,st,fc,ft], axis=1)
+        tot['Att_H'] = ((tot['H_GF_S']*PS + tot['H_GF_F']*PF) / avg_h)
+        tot['Dif_H'] = ((tot['H_GS_S']*PS + tot['H_GS_F']*PF) / avg_a)
+        tot['Att_A'] = ((tot['A_GF_S']*PS + tot['A_GF_F']*PF) / avg_a)
+        tot['Dif_A'] = ((tot['A_GS_S']*PS + tot['A_GS_F']*PF) / avg_h)
+        return tot, avg_h, avg_a
+    except: return None, None, None
+
+def analyze_math(h, a, stats, ah, aa):
+    try:
+        if h not in stats.index or a not in stats.index: return None
+        
+        lh = stats.at[h,'Att_H'] * stats.at[a,'Dif_A'] * ah
+        la = stats.at[a,'Att_A'] * stats.at[h,'Dif_H'] * aa
+        
+        ph, pd, pa = 0, 0, 0
         for i in range(6):
             for j in range(6):
-                prob = poisson.pmf(i, lambda_h) * poisson.pmf(j, lambda_a)
-                if i > j: ph += prob
-                elif i == j: pd_draw += prob
-                else: pa += prob
-                if (i+j) > 2.5: p_over25 += prob
-                
-        best_prob = max(ph, pa)
-        prediction = "1" if ph > pa else "2"
+                p = poisson.pmf(i, lh) * poisson.pmf(j, la)
+                if i>j: ph+=p
+                elif i==j: pd+=p
+                else: pa+=p
         
+        p_o25 = 1 - (poisson.pmf(0, lh+la) + poisson.pmf(1, lh+la) + poisson.pmf(2, lh+la))
+        p_gg = (1 - poisson.pmf(0, lh)) * (1 - poisson.pmf(0, la))
+        
+        options = [
+            {"Tip": "PUNTA 1", "Prob": ph, "Q": 1/ph},
+            {"Tip": "PUNTA 2", "Prob": pa, "Q": 1/pa},
+            {"Tip": "RISCHIO X", "Prob": pd, "Q": 1/pd},
+            {"Tip": "OVER 2.5", "Prob": p_o25, "Q": 1/p_o25},
+            {"Tip": "GOAL", "Prob": p_gg, "Q": 1/p_gg}
+        ]
+        
+        probs_1x2 = {"1": ph, "X": pd, "2": pa}
+        fav_sign = max(probs_1x2, key=probs_1x2.get)
+        
+        valid = [o for o in options if o['Prob'] > 0.50]
+        if valid:
+            valid.sort(key=lambda x: x['Prob'], reverse=True)
+            best = valid[0]
+        else:
+            best = {"Tip": "NO BET", "Prob": 0, "Q": 0}
+
         return {
-            "Tip": prediction, "Prob": best_prob, "FairOdd": 1/best_prob if best_prob>0 else 0,
-            "Over25": p_over25
+            "c": h, "o": a, "Best": best, 
+            "Fav_1X2": {"Label": "CASA" if fav_sign=="1" else "OSPITE" if fav_sign=="2" else "PARI", "Prob": probs_1x2[fav_sign]},
+            "Probs": probs_1x2, "xG_H": lh, "xG_A": la
         }
     except: return None
+
+def calculate_stake(prob, quota, bankroll):
+    try:
+        f = ((quota - 1) * prob - (1 - prob)) / (quota - 1)
+        return round(max(0, bankroll * (f * 0.20)), 2)
+    except: return 0
 
 # ==============================================================================
 # UI
 # ==============================================================================
-st.title("☣️ BETTING PRO: SCANNER")
-budget = st.number_input("Budget (€)", value=100.0)
-st.divider()
+st.title("⚽ BETTING PRO ULTIMATE")
 
-col_scan, col_manual = st.columns([2, 1])
+bankroll = st.number_input("Tuo Budget (€)", value=DEFAULT_BUDGET, step=10.0)
 
-with col_scan:
-    st.subheader("📡 RADAR MATCH")
-    scan_date = st.date_input("Cerca partite dal:", datetime.now())
+tab_radar, tab_cart = st.tabs(["RADAR", "SCHEDINA (MANUALE)"])
+
+# --- RADAR ---
+with tab_radar:
+    st.write("### 🔎 Scanner Prossime Partite")
     
-    if st.button("🚀 AVVIA SCANSIONE", type="primary"):
-        log = st.expander("Log Operazioni", expanded=False)
-        res_container = st.container()
-        found = 0
+    if st.button("CERCA PROSSIME 10 PARTITE", type="primary", use_container_width=True):
+        today = datetime.now().date()
+        st.info(f"Analisi partite dal {today} in poi...")
         
-        with log:
-            for league, urls in LEAGUES.items():
-                st.write(f"Analisi {league}...")
-                
-                # 1. Storico
-                df_hist, _ = fetch_robust_data(urls['hist'])
-                if df_hist is None: continue
-                
-                df_hist['HomeTeam'] = df_hist['HomeTeam'].apply(normalize_name)
-                df_hist['AwayTeam'] = df_hist['AwayTeam'].apply(normalize_name)
-                valid_teams = df_hist['HomeTeam'].unique().tolist()
-                
-                # 2. Calendario
-                df_fix, _ = fetch_robust_data(urls['fix'])
-                if df_fix is None:
-                    # Fallback
-                    df_fix = df_hist[df_hist['FTHG'].isna()].copy()
-                
-                if not df_fix.empty:
-                    d_col = next((c for c in df_fix.columns if 'Date' in c or 'Time' in c), None)
-                    if d_col:
-                        df_fix['DT'] = pd.to_datetime(df_fix[d_col], dayfirst=True, errors='coerce').dt.date
-                        # Prendiamo 5 partite future
-                        matches = df_fix[df_fix['DT'] >= scan_date].sort_values('DT').head(5)
-                        
-                        for _, m in matches.iterrows():
-                            raw_h = m.get('Home Team', m.get('HomeTeam', '')).strip()
-                            raw_a = m.get('Away Team', m.get('AwayTeam', '')).strip()
-                            m_date = m['DT']
-                            
-                            rh = normalize_name(raw_h)
-                            ra = normalize_name(raw_a)
-                            
-                            # Fuzzy Match
-                            if rh not in valid_teams:
-                                x = difflib.get_close_matches(rh, valid_teams, n=1, cutoff=0.6)
-                                if x: rh = x[0]
-                            if ra not in valid_teams:
-                                x = difflib.get_close_matches(ra, valid_teams, n=1, cutoff=0.6)
-                                if x: ra = x[0]
+        found_any = False
+        
+        for db in DATABASE:
+            df_cal = get_data(db['fixture'])
+            if df_cal is not None:
+                # Trova colonna Data
+                col_date = next((c for c in df_cal.columns if 'Date' in c or 'Time' in c), None)
+                if col_date:
+                    df_cal['DT_CLEAN'] = pd.to_datetime(df_cal[col_date], dayfirst=True, errors='coerce').dt.date
+                    # Filtra: Da Oggi in poi, prendi le prime 15
+                    matches = df_cal[df_cal['DT_CLEAN'] >= today].sort_values('DT_CLEAN').head(15)
+                    
+                    if not matches.empty:
+                        # Scarica Statistiche
+                        df_h = get_data(db['history'])
+                        if df_h is not None:
+                            stats, ah, aa = process_stats(df_h)
+                            if stats is not None:
+                                teams_list = stats.index.tolist()
+                                st.success(f"{db['nome']}: Analisi {len(matches)} partite...")
                                 
-                            res = calculate_poisson(rh, ra, df_hist)
-                            
-                            if res and res['Prob'] > 0.50:
-                                found += 1
-                                with res_container:
-                                    with st.container():
-                                        st.markdown(f"#### {rh} vs {ra}")
-                                        st.caption(f"{league} | {m_date}")
-                                        c1, c2, c3, c4 = st.columns(4)
-                                        c1.metric("PUNTA", res['Tip'], f"{res['Prob']*100:.0f}%")
-                                        c2.metric("QUOTA", f"{res['FairOdd']:.2f}")
-                                        c3.metric("OVER 2.5", f"{res['Over25']*100:.0f}%")
-                                        stake = max(0, (res['Prob']-(1-res['Prob']))*budget*0.1)
-                                        c4.metric("STAKE", f"€{stake:.2f}")
-                                        st.divider()
+                                for _, row in matches.iterrows():
+                                    raw_h = row.get('Home Team', row.get('HomeTeam','')).strip()
+                                    raw_a = row.get('Away Team', row.get('AwayTeam','')).strip()
+                                    match_d = row['DT_CLEAN']
+                                    
+                                    # USIAMO IL MATCHING INTELLIGENTE QUI
+                                    real_h = smart_match_name(raw_h, teams_list)
+                                    real_a = smart_match_name(raw_a, teams_list)
+                                    
+                                    res = analyze_math(real_h, real_a, stats, ah, aa)
+                                    
+                                    if res and res['Best']['Prob'] > 0.50:
+                                        found_any = True
+                                        best = res['Best']
+                                        fav = res['Fav_1X2']
+                                        
+                                        with st.container(border=True):
+                                            st.markdown(f"**{real_h} vs {real_a}** <small>({match_d})</small>", unsafe_allow_html=True)
+                                            k1, k2, k3 = st.columns(3)
+                                            k1.metric("TOP", best['Tip'], f"{best['Prob']*100:.0f}%")
+                                            k2.metric("1X2", fav['Label'], f"{fav['Prob']*100:.0f}%")
+                                            k3.metric("Q", f"{best['Q']:.2f}")
 
-        if found == 0: st.warning("Nessuna occasione trovata.")
+        if not found_any:
+            st.warning("Nessuna partita trovata. Controlla la connessione o prova il Manuale.")
 
-with col_manual:
-    st.subheader("🛠️ MANUALE")
-    sl = st.selectbox("League", list(LEAGUES.keys()))
-    if st.button("CARICA SQUADRE"):
-        df, _ = fetch_robust_data(LEAGUES[sl]['hist'])
-        if df is not None:
-            df['HomeTeam'] = df['HomeTeam'].apply(normalize_name)
-            st.session_state['tm'] = sorted(df['HomeTeam'].unique())
-            st.session_state['df'] = df
-            st.rerun()
-            
-    if 'tm' in st.session_state:
-        h = st.selectbox("Casa", st.session_state['tm'])
-        a = st.selectbox("Ospite", st.session_state['tm'], index=1)
-        if st.button("CALCOLA"):
-            r = calculate_poisson(h, a, st.session_state['df'])
-            if r:
-                st.success(f"PUNTA {r['Tip']} ({r['Prob']*100:.1f}%)")
-                st.progress(r['Prob'])
+# --- CARRELLO ---
+with tab_cart:
+    names = [d['nome'] for d in DATABASE]
+    sel = st.selectbox("Scegli Campionato", names)
+    
+    if st.session_state['loaded_league'] != sel:
+        with st.spinner("Carico squadre..."):
+            db = next(d for d in DATABASE if d['nome'] == sel)
+            df = get_data(db['history'])
+            if df is not None:
+                stats, ah, aa = process_stats(df)
+                st.session_state.update({'cur_stats': stats, 'cur_ah': ah, 'cur_aa': aa, 
+                                       'cur_teams': sorted(stats.index.tolist()), 'loaded_league': sel})
+
+    if 'cur_teams' in st.session_state:
+        c1, c2 = st.columns(2)
+        h = c1.selectbox("Casa", st.session_state['cur_teams'])
+        a = c2.selectbox("Ospite", st.session_state['cur_teams'], index=1)
+        
+        if st.button("ANALIZZA MATCH", type="primary", use_container_width=True):
+            if h != a:
+                res = analyze_math(h, a, st.session_state['cur_stats'], st.session_state['cur_ah'], st.session_state['cur_aa'])
+                if res:
+                    best = res['Best']
+                    stake = calculate_stake(best['Prob'], best['Q']*1.05, bankroll)
+                    
+                    st.divider()
+                    st.markdown(f"### 📊 {h} vs {a}")
+                    c_top, c_1x2, c_soldi = st.columns(3)
+                    c_top.metric("STRATEGIA", best['Tip'], f"{best['Prob']*100:.1f}%")
+                    c_1x2.metric("FAVORITO", res['Fav_1X2']['Label'], f"{res['Fav_1X2']['Prob']*100:.0f}%")
+                    c_soldi.metric("STAKE", f"€{stake}", f"Q: {best['Q']:.2f}")
+                    
+                    st.caption("Probabilità Esatte:")
+                    p = res['Probs']
+                    st.progress(p['1'], f"1: {p['1']*100:.0f}%")
+                    st.progress(p['X'], f"X: {p['X']*100:.0f}%")
+                    st.progress(p['2'], f"2: {p['2']*100:.0f}%")
