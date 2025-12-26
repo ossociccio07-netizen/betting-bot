@@ -51,20 +51,17 @@ DATABASE = [
     {"id": "F1", "nome": "🇫🇷 Ligue1", "history": "https://www.football-data.co.uk/mmz4281/2526/F1.csv", "fixture": "https://fixturedownload.com/download/csv/2025/france-ligue-1-2025.csv"},
 ]
 
-# Dizionario per correggere i nomi diversi tra Calendario e Statistiche
+# --- NUOVO: Dizionario Correttore Nomi ---
 NAME_MAPPING = {
     "Man Utd": "Man United", "Manchester United": "Man United",
     "Man City": "Man City", "Manchester City": "Man City",
     "Nott'm Forest": "Nottm Forest", "Nottingham Forest": "Nottm Forest",
-    "Sheffield Utd": "Sheffield United",
-    "Luton": "Luton Town",
+    "Sheffield Utd": "Sheffield United", "Luton": "Luton Town",
     "Wolves": "Wolverhampton", "Wolverhampton Wanderers": "Wolverhampton",
-    "Brighton": "Brighton & Hove Albion",
-    "Spurs": "Tottenham", "Tottenham Hotspur": "Tottenham",
-    "West Ham": "West Ham United",
-    "Newcastle": "Newcastle United",
-    "Inter": "Internazionale", "Milan": "AC Milan",
-    "Monza": "Monza"
+    "Brighton": "Brighton & Hove Albion", "Spurs": "Tottenham", 
+    "Tottenham Hotspur": "Tottenham", "West Ham": "West Ham United",
+    "Newcastle": "Newcastle United", "Inter": "Internazionale", "Milan": "AC Milan",
+    "Monza": "Monza", "Verona": "Hellas Verona", "Empoli": "Empoli"
 }
 
 if 'cart' not in st.session_state: st.session_state['cart'] = []
@@ -82,19 +79,16 @@ def get_data(url):
     except: return None
     return None
 
+# --- NUOVO: Funzione Intelligente per i Nomi ---
 def normalize_name(name, known_teams):
-    """Cerca di far combaciare il nome del calendario con quello delle statistiche"""
     name = name.strip()
     # 1. Controllo dizionario manuale
-    if name in NAME_MAPPING:
-        return NAME_MAPPING[name]
-    # 2. Controllo diretto
-    if name in known_teams:
-        return name
-    # 3. Tentativo "contiene" (es. "Inter Milan" -> "Internazionale" no, ma "Luton" -> "Luton Town" si)
+    if name in NAME_MAPPING: return NAME_MAPPING[name]
+    # 2. Controllo esatto
+    if name in known_teams: return name
+    # 3. Controllo parziale (es. "Luton" in "Luton Town")
     for t in known_teams:
-        if name in t or t in name:
-            return t
+        if name in t or t in name: return t
     return name
 
 def process_stats(df):
@@ -105,7 +99,7 @@ def process_stats(df):
         
         avg_h, avg_a = df['FTHG'].mean(), df['FTAG'].mean()
         
-        # Pesi: 60% Stagione intera, 40% Ultime 5 partite
+        # Pesi
         PS, PF = 0.60, 0.40
         
         sc = df.groupby('HomeTeam')[['FTHG','FTAG']].mean()
@@ -155,7 +149,7 @@ def analyze_math(h, a, stats, ah, aa):
         probs_1x2 = {"1": ph, "X": pd, "2": pa}
         fav_sign = max(probs_1x2, key=probs_1x2.get)
         
-        # Filtro Migliore Opzione
+        # --- QUI C'È IL FILTRO ---
         valid = [o for o in options if o['Prob'] > 0.50]
         if valid:
             valid.sort(key=lambda x: x['Prob'], reverse=True)
@@ -220,7 +214,7 @@ with tab_radar:
                                 raw_h = row.get('Home Team', row.get('HomeTeam','')).strip()
                                 raw_a = row.get('Away Team', row.get('AwayTeam','')).strip()
                                 
-                                # 3. MAPPING INTELLIGENTE (Fondamentale!)
+                                # 3. MAPPING INTELLIGENTE (La parte magica)
                                 real_h = normalize_name(raw_h, teams_list)
                                 real_a = normalize_name(raw_a, teams_list)
                                 
@@ -240,7 +234,7 @@ with tab_radar:
                                         k3.metric("QUOTA", f"{best['Q']:.2f}")
 
         if not global_found:
-            st.warning("Nessuna partita trovata. Controlla che ci siano partite OGGI in Premier/Serie A, oppure cambia data.")
+            st.warning("Nessuna partita trovata sopra il 50%. (Controlla se ci sono partite oggi in Premier, Serie A, Liga etc)")
 
 # --- TAB CARRELLO ---
 with tab_cart:
