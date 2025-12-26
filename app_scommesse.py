@@ -215,7 +215,7 @@ with tab_radar:
                                 c, o = m.get(c,c), m.get(o,o)
                                 
                                 res = analyze_math(c, o, stats, ah, aa)
-                                if res and res['Best']['Prob'] > 0.60:
+                                if res and res['Best']['Prob'] > 0.50:
                                     found = True
                                     best = res['Best']
                                     with st.container(border=True):
@@ -225,7 +225,7 @@ with tab_radar:
                                         k2.metric("1X2", res['Fav_1X2']['Label'], f"{res['Fav_1X2']['Prob']*100:.0f}%")
                                         k3.metric("QUOTA", f"{best['Q']:.2f}")
 
-        if not found: st.warning("Nessuna occasione sicura al 100% trovata.")
+        if not found: st.warning("Nessuna occasione sicura al 50% trovata.")
 
 # --- TAB CARRELLO ---
 with tab_cart:
