@@ -6,11 +6,11 @@ import requests
 import io
 
 # ==============================================================================
-# 1. CONFIGURAZIONE & DESIGN (LAYOUT FIGO)
+# 1. CONFIGURAZIONE & DESIGN (LAYOUT DARK NEON)
 # ==============================================================================
 st.set_page_config(page_title="BETTING MASTER AI", page_icon="💎", layout="wide")
 
-# CSS PERSONALIZZATO PER UN LOOK "DARK NEON"
+# CSS PERSONALIZZATO
 st.markdown("""
 <style>
     /* Sfondo e colori base */
@@ -31,17 +31,19 @@ st.markdown("""
         box-shadow: 0 4px 6px rgba(0,0,0,0.3);
     }
     
-    /* Metriche personalizzate */
+    /* Box Statistiche dentro la card */
     .stat-box {
         text-align: center;
         background: #262730;
         padding: 10px;
         border-radius: 8px;
         border: 1px solid #444;
+        width: 30%;
     }
-    .stat-label { font-size: 12px; color: #888; text-transform: uppercase; }
-    .stat-value { font-size: 20px; font-weight: bold; color: #fff; }
-    .stat-green { color: #00e676 !important; }
+    .stat-label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px; }
+    .stat-value { font-size: 18px; font-weight: bold; color: #fff; }
+    
+    .stat-green { color: #00e676 !important; text-shadow: 0 0 10px rgba(0,230,118,0.3); }
     .stat-blue { color: #2979ff !important; }
     .stat-yellow { color: #ffeb3b !important; }
     
@@ -51,16 +53,25 @@ st.markdown("""
         color: black;
         font-weight: bold;
         border: none;
-        border-radius: 20px;
-        padding: 0.5rem 2rem;
+        border-radius: 8px;
+        height: 45px;
         width: 100%;
+        font-size: 16px;
     }
     .stButton>button:hover {
-        box-shadow: 0 0 10px #00e676;
+        box-shadow: 0 0 15px #00e676;
+        color: black;
     }
     
     /* Sidebar */
     [data-testid="stSidebar"] { background-color: #111; border-right: 1px solid #222; }
+    
+    /* Flex container per le stats */
+    .flex-stats {
+        display: flex;
+        justify-content: space-around;
+        align-items: center;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -79,8 +90,6 @@ LEAGUES = {
     "🏴󠁧󠁢󠁳󠁣󠁴󠁿 Premiership (Scozia)": "https://www.football-data.co.uk/mmz4281/2425/SC0.csv",
     "🇹🇷 Super Lig (Turchia)": "https://www.football-data.co.uk/mmz4281/2425/T1.csv",
     "🇬🇷 Super League (Grecia)": "https://www.football-data.co.uk/mmz4281/2425/G1.csv",
-    "🇬🇧 Championship (UK 2)": "https://www.football-data.co.uk/mmz4281/2425/E1.csv",
-    "🇮🇹 Serie B": "https://www.football-data.co.uk/mmz4281/2425/I2.csv",
 }
 
 # ==============================================================================
@@ -131,8 +140,6 @@ def predict_match(xg_h, xg_a):
     p_x = np.sum(np.diag(matrix))
     p_2 = np.sum(np.triu(matrix, 1))
     
-    p_over25 = 1 - np.sum(matrix[0:3, 0:3]) + matrix[0,2] + matrix[1,1] + matrix[2,0] # Approssimazione corretta O2.5
-    # Correzione Over 2.5 precisa: somma prob dove i+j > 2.5
     p_over25 = 0
     p_gg = 0
     for i in range(max_goals):
@@ -142,16 +149,21 @@ def predict_match(xg_h, xg_a):
 
     return {
         "1": p_1, "X": p_x, "2": p_2,
-        "Over2.5": p_over25, "Under2.5": 1 - p_over25,
-        "GG": p_gg, "NG": 1 - p_gg
+        "OVER 2.5": p_over25, "UNDER 2.5": 1 - p_over25,
+        "GOAL": p_gg, "NO GOAL": 1 - p_gg
     }
 
-def kelly_criterion(prob, odds, bankroll, fraction=0.1):
-    if odds <= 1: return 0
-    b = odds - 1
-    q = 1 - prob
-    f = (b * prob - q) / b
-    return max(0, bankroll * (f * fraction))
+def calculate_confidence_stake(prob, bankroll):
+    # Se probabilità < 50%, non scommettere
+    if prob <= 0.50: return 0.0
+    # Scaliamo lo stake in base alla sicurezza
+    # 50% -> 0€
+    # 60% -> 4% del budget
+    # 80% -> 12% del budget
+    # 100% -> 20% del budget
+    factor = (prob - 0.50) * 2 
+    stake = bankroll * (factor * 0.20)
+    return round(stake, 2)
 
 # ==============================================================================
 # 4. INTERFACCIA UTENTE
@@ -159,14 +171,14 @@ def kelly_criterion(prob, odds, bankroll, fraction=0.1):
 
 # --- SIDEBAR ---
 with st.sidebar:
-    st.title("⚙️ SETTINGS")
+    st.title("⚙️ IMPOSTAZIONI")
     budget = st.number_input("IL TUO BUDGET (€)", value=100.0, step=10.0)
     st.divider()
-    st.info("💡 Scegli il campionato, seleziona le squadre e aggiungi al carrello. Poi analizza tutto insieme.")
+    st.info("💡 Scegli il campionato, seleziona le squadre e aggiungi al carrello. Il sistema calcolerà tutto.")
 
 # --- MAIN ---
 st.title("💎 BETTING MASTER AI")
-st.markdown("### Algoritmo Predittivo Poisson • Multi-League")
+st.markdown("### Algoritmo Predittivo Poisson • Manual Mode")
 
 # Session State
 if 'cart' not in st.session_state: st.session_state['cart'] = []
@@ -177,38 +189,38 @@ col1, col2 = st.columns([1, 2])
 
 with col1:
     st.markdown("#### 1. Scegli Match")
-    league_sel = st.selectbox("Campionato", list(LEAGUES.keys()))
-    
-    # Caricamento Dati
-    if league_sel not in st.session_state['data_cache']:
-        with st.spinner("Scarico dati..."):
-            df = load_data(LEAGUES[league_sel])
-            if df is not None:
-                st.session_state['data_cache'][league_sel] = df
-    
-    current_df = st.session_state['data_cache'].get(league_sel)
-    
-    if current_df is not None:
-        teams = sorted(current_df['HomeTeam'].unique())
-        home_team = st.selectbox("Squadra Casa", teams)
-        away_team = st.selectbox("Squadra Ospite", teams, index=1)
+    with st.container(border=True):
+        league_sel = st.selectbox("Campionato", list(LEAGUES.keys()))
         
-        odds_val = st.number_input("Quota Bookmaker (Opzionale per Stake)", value=1.0, step=0.01, min_value=1.0)
+        # Caricamento Dati
+        if league_sel not in st.session_state['data_cache']:
+            with st.spinner("Scarico dati..."):
+                df = load_data(LEAGUES[league_sel])
+                if df is not None:
+                    st.session_state['data_cache'][league_sel] = df
         
-        if st.button("➕ AGGIUNGI AL CARRELLO", type="primary"):
-            if home_team != away_team:
-                st.session_state['cart'].append({
-                    "League": league_sel,
-                    "Home": home_team,
-                    "Away": away_team,
-                    "Odds": odds_val,
-                    "DF": current_df # Salviamo il riferimento al DF
-                })
-                st.success("Match aggiunto!")
-            else:
-                st.error("Scegli squadre diverse!")
-    else:
-        st.error("Errore scaricamento dati per questo campionato.")
+        current_df = st.session_state['data_cache'].get(league_sel)
+        
+        if current_df is not None:
+            teams = sorted(current_df['HomeTeam'].unique())
+            home_team = st.selectbox("Squadra Casa", teams)
+            away_team = st.selectbox("Squadra Ospite", teams, index=1)
+            
+            st.write("") # Spazio
+            
+            if st.button("➕ AGGIUNGI AL CARRELLO", type="primary"):
+                if home_team != away_team:
+                    st.session_state['cart'].append({
+                        "League": league_sel,
+                        "Home": home_team,
+                        "Away": away_team,
+                        "DF": current_df
+                    })
+                    st.success("Match aggiunto!")
+                else:
+                    st.error("Scegli squadre diverse!")
+        else:
+            st.error("Errore scaricamento dati per questo campionato.")
 
 # CARRELLO & RISULTATI
 with col2:
@@ -217,78 +229,73 @@ with col2:
     if not st.session_state['cart']:
         st.info("Il carrello è vuoto. Aggiungi delle partite dalla colonna di sinistra.")
     else:
-        # Tasto Reset e Analizza
-        c_act1, c_act2 = st.columns(2)
-        if c_act1.button("🗑️ SVUOTA TUTTO"):
+        if st.button("🗑️ SVUOTA TUTTO"):
             st.session_state['cart'] = []
             st.rerun()
             
-        if len(st.session_state['cart']) > 0:
-            st.divider()
+        st.write("") # Spazio
+        
+        # LOOP SUL CARRELLO
+        for i, item in enumerate(st.session_state['cart']):
+            # Calcoli
+            xg = calculate_stats(item['DF'], item['Home'], item['Away'])
             
-            # LOOP SUL CARRELLO
-            for i, item in enumerate(st.session_state['cart']):
-                # Calcoli
-                xg = calculate_stats(item['DF'], item['Home'], item['Away'])
+            if xg:
+                xg_h, xg_a = xg
+                probs = predict_match(xg_h, xg_a)
                 
-                if xg:
-                    xg_h, xg_a = xg
-                    probs = predict_match(xg_h, xg_a)
+                # Determinazione Pronostico Migliore
+                best_tip = max(probs, key=probs.get)
+                best_prob = probs[best_tip]
+                
+                # Calcolo Stake Automatico
+                stake = calculate_confidence_stake(best_prob, budget)
+                
+                # --- RENDER CARD ---
+                # Usiamo st.markdown con HTML pulito per la card
+                card_html = f"""
+                <div class="match-card">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                        <span style="color:#888; font-size:12px;">{item['League']}</span>
+                        <span style="color:#00e676; font-weight:bold; font-family:monospace;">xG: {xg_h:.2f} - {xg_a:.2f}</span>
+                    </div>
+                    <h3 style="margin:0; text-align:center; color:#fff; font-size:22px;">{item['Home']} <span style="color:#666">vs</span> {item['Away']}</h3>
+                    <hr style="border-color:#333; margin:15px 0;">
                     
-                    # Determinazione Pronostico Migliore
-                    options = {
-                        "1": probs['1'], "X": probs['X'], "2": probs['2'],
-                        "OVER 2.5": probs['Over2.5'], "UNDER 2.5": probs['Under2.5'],
-                        "GOAL": probs['GG'], "NO GOAL": probs['NG']
-                    }
-                    best_tip = max(options, key=options.get)
-                    best_prob = options[best_tip]
-                    
-                    # Calcolo Stake
-                    stake = kelly_criterion(best_prob, item['Odds'], budget) if item['Odds'] > 1 else 0
-                    
-                    # --- RENDER CARD (HTML/CSS) ---
-                    st.markdown(f"""
-                    <div class="match-card">
-                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                            <span style="color:#888; font-size:12px;">{item['League']}</span>
-                            <span style="color:#00e676; font-weight:bold;">xG: {xg_h:.2f} - {xg_a:.2f}</span>
+                    <div class="flex-stats">
+                        <div class="stat-box">
+                            <div class="stat-label">STRATEGIA</div>
+                            <div class="stat-value stat-green">{best_tip}</div>
                         </div>
-                        <h3 style="margin:0; text-align:center; color:#fff;">{item['Home']} <span style="color:#666">vs</span> {item['Away']}</h3>
-                        <hr style="border-color:#333; margin:15px 0;">
-                        
-                        <div style="display:flex; justify-content:space-around;">
-                            <div class="stat-box">
-                                <div class="stat-label">CONSIGLIO</div>
-                                <div class="stat-value stat-green">{best_tip}</div>
-                            </div>
-                            <div class="stat-box">
-                                <div class="stat-label">SICUREZZA</div>
-                                <div class="stat-value stat-blue">{best_prob*100:.1f}%</div>
-                            </div>
-                            <div class="stat-box">
-                                <div class="stat-label">STAKE</div>
-                                <div class="stat-value stat-yellow">€{stake:.2f}</div>
-                            </div>
+                        <div class="stat-box">
+                            <div class="stat-label">SICUREZZA</div>
+                            <div class="stat-value stat-blue">{best_prob*100:.1f}%</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-label">PUNTA</div>
+                            <div class="stat-value stat-yellow">€{stake:.2f}</div>
                         </div>
                     </div>
-                    """, unsafe_allow_html=True)
-                    
-                    # Dettagli Espandibili
-                    with st.expander(f"📊 Dettagli Probabilità: {item['Home']} vs {item['Away']}"):
-                        c1, c2, c3 = st.columns(3)
-                        c1.progress(probs['1'], f"1: {probs['1']*100:.1f}%")
-                        c1.progress(probs['X'], f"X: {probs['X']*100:.1f}%")
-                        c1.progress(probs['2'], f"2: {probs['2']*100:.1f}%")
-                        
-                        c2.progress(probs['Over2.5'], f"Over 2.5: {probs['Over2.5']*100:.1f}%")
-                        c2.progress(probs['Under2.5'], f"Under 2.5: {probs['Under2.5']*100:.1f}%")
-                        
-                        c3.progress(probs['GG'], f"Goal: {probs['GG']*100:.1f}%")
-                        c3.progress(probs['NG'], f"No Goal: {probs['NG']*100:.1f}%")
+                </div>
+                """
+                st.markdown(card_html, unsafe_allow_html=True)
                 
-                else:
-                    st.error(f"Dati insufficienti per calcolare {item['Home']} vs {item['Away']}")
-
-# Footer
-st.markdown("<div style='text-align:center; color:#444; margin-top:50px;'>Betting Master AI v5.0 • Powered by Poisson Distribution</div>", unsafe_allow_html=True)
+                # Dettagli Espandibili
+                with st.expander(f"📊 Analisi Dettagliata: {item['Home']} vs {item['Away']}"):
+                    c1, c2, c3 = st.columns(3)
+                    
+                    c1.write("**Esito Finale (1X2)**")
+                    c1.progress(probs['1'], f"1: {probs['1']*100:.1f}%")
+                    c1.progress(probs['X'], f"X: {probs['X']*100:.1f}%")
+                    c1.progress(probs['2'], f"2: {probs['2']*100:.1f}%")
+                    
+                    c2.write("**Under / Over**")
+                    c2.progress(probs['OVER 2.5'], f"Over 2.5: {probs['OVER 2.5']*100:.1f}%")
+                    c2.progress(probs['UNDER 2.5'], f"Under 2.5: {probs['UNDER 2.5']*100:.1f}%")
+                    
+                    c3.write("**Goal / NoGoal**")
+                    c3.progress(probs['GOAL'], f"Goal: {probs['GOAL']*100:.1f}%")
+                    c3.progress(probs['NO GOAL'], f"No Goal: {probs['NO GOAL']*100:.1f}%")
+            
+            else:
+                st.error(f"Dati insufficienti per calcolare {item['Home']} vs {item['Away']}")
