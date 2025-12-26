@@ -205,32 +205,33 @@ bankroll = st.number_input("Tuo Budget (€)", value=DEFAULT_BUDGET, step=10.0)
 
 tab_radar, tab_cart = st.tabs(["RADAR AUTO", "SCHEDINA"])
 
-# --- TAB RADAR (MODIFICATO PER FUNZIONARE) ---
+# --- TAB RADAR (MODIFICA "PROSSIME PARTITE") ---
 with tab_radar:
-    st.write("### 🔎 Scanner Partite")
-    sel_date = st.date_input("Data Partite:", datetime.now())
+    st.write("### 🔎 Scanner Prossime Partite")
+    st.caption("Analizza le prossime partite in programma (non solo oggi).")
     
-    # Questo bottone scatena la magia
-    if st.button("SCANSIONA TUTTO", type="primary", use_container_width=True):
-        # Convertiamo la data scelta in oggetto DATE (senza orario)
-        target_date_obj = sel_date 
-        st.info(f"Analisi in corso per il {target_date_obj}...")
+    # Non chiediamo più la data esatta, partiamo da OGGI
+    if st.button("CERCA PROSSIME OCCASIONI", type="primary", use_container_width=True):
+        today = datetime.now().date()
+        st.info(f"Cerco le partite a partire dal {today}...")
         
         global_found = False
         
         for db in DATABASE:
             # Scarica Calendario
             df_cal = get_data(db['fixture'])
+            
             if df_cal is not None:
-                # Cerca la colonna giusta per la data
+                # Cerca colonna data
                 col_date = next((c for c in df_cal.columns if 'Date' in c or 'Time' in c), None)
                 
                 if col_date:
-                    # TRUCCO: Convertiamo tutto in DATE (solo anno-mese-giorno), ignorando l'orario
+                    # Converti date
                     df_cal['DT_CLEAN'] = pd.to_datetime(df_cal[col_date], dayfirst=True, errors='coerce').dt.date
                     
-                    # Filtriamo
-                    matches = df_cal[df_cal['DT_CLEAN'] == target_date_obj]
+                    # LOGICA NUOVA: Prendi le partite da OGGI in poi (massimo 15)
+                    # Così se oggi è vuoto, ti fa vedere domani!
+                    matches = df_cal[df_cal['DT_CLEAN'] >= today].sort_values('DT_CLEAN').head(15)
                     
                     if not matches.empty:
                         # Scarica Statistiche
@@ -239,30 +240,31 @@ with tab_radar:
                             stats, ah, aa = process_stats(df_h)
                             if stats is not None:
                                 teams_list = stats.index.tolist()
-                                st.toast(f"Trovate {len(matches)} partite in {db['nome']}...", icon="✅")
+                                
+                                # Messaggio di debug utile
+                                first_match_date = matches.iloc[0]['DT_CLEAN']
+                                st.toast(f"{db['nome']}: Trovate partite dal {first_match_date}", icon="📅")
                                 
                                 for _, row in matches.iterrows():
-                                    # Nomi Squadre
                                     raw_h = row.get('Home Team', row.get('HomeTeam','')).strip()
                                     raw_a = row.get('Away Team', row.get('AwayTeam','')).strip()
+                                    match_date = row['DT_CLEAN']
                                     
-                                    # Normalizza i nomi (es. Man Utd -> Man United)
                                     real_h = normalize_name(raw_h, teams_list)
                                     real_a = normalize_name(raw_a, teams_list)
                                     
-                                    # Analizza
                                     res = analyze_math(real_h, real_a, stats, ah, aa)
                                     
-                                    # Filtro: Mostra se sicurezza > 50%
+                                    # Filtro 50%
                                     if res and res['Best']['Prob'] > 0.50:
                                         global_found = True
                                         best = res['Best']
                                         fav = res['Fav_1X2']
                                         
-                                        # Visualizza il Container Bello
                                         with st.container(border=True):
-                                            st.markdown(f"**{real_h} vs {real_a}**")
-                                            st.caption(f"Campionato: {db['nome']}")
+                                            # Intestazione con DATA della partita
+                                            st.markdown(f"**{real_h} vs {real_a}** <span style='font-size:12px; color:#888'>({match_date})</span>", unsafe_allow_html=True)
+                                            st.caption(f"{db['nome']}")
                                             
                                             k1, k2, k3 = st.columns(3)
                                             k1.metric("STRATEGIA", best['Tip'], f"{best['Prob']*100:.0f}%")
@@ -270,7 +272,12 @@ with tab_radar:
                                             k3.metric("QUOTA", f"{best['Q']:.2f}")
 
         if not global_found:
-            st.warning(f"Nessuna partita trovata sopra il 50% per il {sel_date}.")
+            st.error("Nessuna partita trovata nei file. Possibili cause:")
+            st.markdown("""
+            1. I file online dei calendari non sono ancora aggiornati.
+            2. Oggi non ci sono partite nei campionati selezionati.
+            3. Il sito sorgente dei dati è momentaneamente irraggiungibile.
+            """)
 
 # --- TAB CARRELLO ---
 with tab_cart:
