@@ -184,16 +184,16 @@ bankroll = st.number_input("Tuo Budget (€)", value=DEFAULT_BUDGET, step=10.0)
 
 tab_radar, tab_cart = st.tabs(["RADAR AUTO", "SCHEDINA"])
 
-# --- TAB RADAR ---
+# --- TAB RADAR (MODIFICATA) ---
 with tab_radar:
-    c1, c2 = st.columns(2)
-    if c1.button("OGGI", use_container_width=True): t_scan = 0
-    elif c2.button("DOMANI", use_container_width=True): t_scan = 1
-    else: t_scan = None
+    st.write("### 🔎 Scanner Partite Europa")
     
-    if t_scan is not None:
-        target_d = (datetime.now() + timedelta(days=t_scan)).strftime('%Y-%m-%d')
-        st.info(f"Analisi {target_d}...")
+    # 1. CALENDARIO AL POSTO DEI BOTTONI
+    sel_date = st.date_input("Seleziona la data da analizzare:", datetime.now())
+    
+    if st.button("AVVIA SCANSIONE", type="primary", use_container_width=True):
+        target_d = sel_date.strftime('%Y-%m-%d')
+        st.info(f"Analisi in corso per il {target_d} su tutti i campionati...")
         found = False
         
         for db in DATABASE:
@@ -215,17 +215,20 @@ with tab_radar:
                                 c, o = m.get(c,c), m.get(o,o)
                                 
                                 res = analyze_math(c, o, stats, ah, aa)
+                                
+                                # 2. SOGLIA ABBASSATA AL 50% (0.50)
                                 if res and res['Best']['Prob'] > 0.50:
                                     found = True
                                     best = res['Best']
                                     with st.container(border=True):
                                         st.markdown(f"**{c} vs {o}**")
+                                        st.caption(f"{db['nome']}") # Mostra anche il campionato
                                         k1, k2, k3 = st.columns(3)
                                         k1.metric("TOP", best['Tip'], f"{best['Prob']*100:.0f}%")
                                         k2.metric("1X2", res['Fav_1X2']['Label'], f"{res['Fav_1X2']['Prob']*100:.0f}%")
                                         k3.metric("QUOTA", f"{best['Q']:.2f}")
 
-        if not found: st.warning("Nessuna occasione sicura al 50% trovata.")
+        if not found: st.warning(f"Nessuna partita trovata sopra il 50% per il {target_d}.")
 
 # --- TAB CARRELLO ---
 with tab_cart:
