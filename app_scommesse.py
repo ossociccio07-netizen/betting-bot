@@ -22,40 +22,19 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==============================================================================
-# DATABASE AGGIORNATO (STAGIONE 2024-2025 REALE)
+# DATABASE (Uso i link che funzionavano per il manuale)
 # ==============================================================================
 DATABASE = [
-    {
-        "id": "E0", 
-        "nome": "🇬🇧 Premier League", 
-        "history": "https://www.football-data.co.uk/mmz4281/2425/E0.csv", 
-        "fixture": "https://fixturedownload.com/download/csv/2024/england-premier-league-2024.csv"
-    },
-    {
-        "id": "I1", 
-        "nome": "🇮🇹 Serie A", 
-        "history": "https://www.football-data.co.uk/mmz4281/2425/I1.csv", 
-        "fixture": "https://fixturedownload.com/download/csv/2024/italy-serie-a-2024.csv"
-    },
-    {
-        "id": "SP1", 
-        "nome": "🇪🇸 La Liga", 
-        "history": "https://www.football-data.co.uk/mmz4281/2425/SP1.csv", 
-        "fixture": "https://fixturedownload.com/download/csv/2024/spain-la-liga-2024.csv"
-    },
-    {
-        "id": "D1", 
-        "nome": "🇩🇪 Bundesliga", 
-        "history": "https://www.football-data.co.uk/mmz4281/2425/D1.csv", 
-        "fixture": "https://fixturedownload.com/download/csv/2024/germany-bundesliga-2024.csv"
-    },
-    {
-        "id": "F1", 
-        "nome": "🇫🇷 Ligue 1", 
-        "history": "https://www.football-data.co.uk/mmz4281/2425/F1.csv", 
-        "fixture": "https://fixturedownload.com/download/csv/2024/france-ligue-1-2024.csv"
-    },
+    {"id": "E0", "nome": "🇬🇧 Premier", "history": "https://www.football-data.co.uk/mmz4281/2526/E0.csv", "fixture": "https://fixturedownload.com/download/csv/2025/england-premier-league-2025.csv"},
+    {"id": "I1", "nome": "🇮🇹 Serie A", "history": "https://www.football-data.co.uk/mmz4281/2526/I1.csv", "fixture": "https://fixturedownload.com/download/csv/2025/italy-serie-a-2025.csv"},
+    {"id": "SP1", "nome": "🇪🇸 Liga", "history": "https://www.football-data.co.uk/mmz4281/2526/SP1.csv", "fixture": "https://fixturedownload.com/download/csv/2025/spain-la-liga-2025.csv"},
+    {"id": "D1", "nome": "🇩🇪 Bund", "history": "https://www.football-data.co.uk/mmz4281/2526/D1.csv", "fixture": "https://fixturedownload.com/download/csv/2025/germany-bundesliga-2025.csv"},
+    {"id": "F1", "nome": "🇫🇷 Ligue1", "history": "https://www.football-data.co.uk/mmz4281/2526/F1.csv", "fixture": "https://fixturedownload.com/download/csv/2025/france-ligue-1-2025.csv"},
 ]
+
+if 'cart' not in st.session_state: st.session_state['cart'] = []
+if 'loaded_league' not in st.session_state: st.session_state['loaded_league'] = None
+
 # ==============================================================================
 # FUNZIONI DATI
 # ==============================================================================
