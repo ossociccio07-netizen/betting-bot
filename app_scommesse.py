@@ -46,40 +46,34 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==============================================================================
-# DATABASE CORRETTO (STAGIONE ATTUALE 2024-2025)
+# DATABASE (LINK CORRETTI E VERIFICATI)
 # ==============================================================================
+# Se un link calendario fallisce, il radar non andrà, ma la schedina manuale sì.
 DATABASE = [
     {
-        "id": "E0", 
-        "nome": "🇬🇧 Premier League", 
-        # History: 2425 = Stagione 24/25
-        "history": "https://www.football-data.co.uk/mmz4281/2425/E0.csv", 
-        # Fixture: 2024 = File che inizia nel 2024
-        "fixture": "https://fixturedownload.com/download/csv/2024/england-premier-league-2024.csv"
+        "id": "E0", "nome": "🇬🇧 Premier League", 
+        "history": "https://www.football-data.co.uk/mmz4281/2526/E0.csv", 
+        "fixture": "https://fixturedownload.com/download/csv/2025/england-premier-league-2025.csv"
     },
     {
-        "id": "I1", 
-        "nome": "🇮🇹 Serie A", 
-        "history": "https://www.football-data.co.uk/mmz4281/2425/I1.csv", 
-        "fixture": "https://fixturedownload.com/download/csv/2024/italy-serie-a-2024.csv"
+        "id": "I1", "nome": "🇮🇹 Serie A", 
+        "history": "https://www.football-data.co.uk/mmz4281/2526/I1.csv", 
+        "fixture": "https://fixturedownload.com/download/csv/2025/italy-serie-a-2025.csv"
     },
     {
-        "id": "SP1", 
-        "nome": "🇪🇸 La Liga", 
-        "history": "https://www.football-data.co.uk/mmz4281/2425/SP1.csv", 
-        "fixture": "https://fixturedownload.com/download/csv/2024/spain-la-liga-2024.csv"
+        "id": "SP1", "nome": "🇪🇸 La Liga", 
+        "history": "https://www.football-data.co.uk/mmz4281/2526/SP1.csv", 
+        "fixture": "https://fixturedownload.com/download/csv/2025/spain-la-liga-2025.csv"
     },
     {
-        "id": "D1", 
-        "nome": "🇩🇪 Bundesliga", 
-        "history": "https://www.football-data.co.uk/mmz4281/2425/D1.csv", 
-        "fixture": "https://fixturedownload.com/download/csv/2024/germany-bundesliga-2024.csv"
+        "id": "D1", "nome": "🇩🇪 Bundesliga", 
+        "history": "https://www.football-data.co.uk/mmz4281/2526/D1.csv", 
+        "fixture": "https://fixturedownload.com/download/csv/2025/germany-bundesliga-2025.csv"
     },
     {
-        "id": "F1", 
-        "nome": "🇫🇷 Ligue 1", 
-        "history": "https://www.football-data.co.uk/mmz4281/2425/F1.csv", 
-        "fixture": "https://fixturedownload.com/download/csv/2024/france-ligue-1-2024.csv"
+        "id": "F1", "nome": "🇫🇷 Ligue 1", 
+        "history": "https://www.football-data.co.uk/mmz4281/2526/F1.csv", 
+        "fixture": "https://fixturedownload.com/download/csv/2025/france-ligue-1-2025.csv"
     }
 ]
 
@@ -92,6 +86,7 @@ if 'loaded_league' not in st.session_state: st.session_state['loaded_league'] = 
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_data(url):
     try:
+        # Timeout breve per non bloccare tutto se il sito è lento
         r = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=5)
         if r.status_code == 200: return pd.read_csv(io.StringIO(r.text))
     except: return None
@@ -188,62 +183,69 @@ tab_radar, tab_cart = st.tabs(["RADAR", "SCHEDINA"])
 with tab_radar:
     st.write("### 🔎 Scanner Prossime Partite")
     
-    # Bottone unico che cerca da OGGI in poi
     if st.button("CERCA PARTITE (DA OGGI)", type="primary", use_container_width=True):
         today = datetime.now().date()
-        st.info(f"Cerco partite nel database 2025/2026 a partire dal {today}...")
+        st.info(f"Analisi partite dal {today} in poi...")
         
         found_any = False
         
         for db in DATABASE:
+            # TENTATIVO DI SCARICARE IL CALENDARIO
             df_cal = get_data(db['fixture'])
-            if df_cal is not None:
-                # Cerca colonna data (Fixtures usa 'Date' o 'Match Date')
-                col_date = next((c for c in df_cal.columns if 'Date' in c or 'Time' in c), None)
+            
+            if df_cal is None:
+                st.error(f"❌ Impossibile scaricare calendario per {db['nome']} (Link rotto)")
+                continue
+
+            # Se scaricato, cerca la data
+            col_date = next((c for c in df_cal.columns if 'Date' in c or 'Time' in c), None)
+            
+            if col_date:
+                # Normalizza data
+                df_cal['DT_CLEAN'] = pd.to_datetime(df_cal[col_date], dayfirst=True, errors='coerce').dt.date
                 
-                if col_date:
-                    # Normalizza data
-                    df_cal['DT_CLEAN'] = pd.to_datetime(df_cal[col_date], dayfirst=True, errors='coerce').dt.date
-                    
-                    # FILTRO: Prendi le partite da OGGI in poi (max 10 per non intasare)
-                    matches = df_cal[df_cal['DT_CLEAN'] >= today].sort_values('DT_CLEAN').head(10)
-                    
-                    if not matches.empty:
-                        # Scarica Statistiche (Storico)
-                        df_h = get_data(db['history'])
-                        if df_h is not None:
-                            stats, ah, aa = process_stats(df_h)
-                            if stats is not None:
-                                teams_list = stats.index.tolist()
-                                st.success(f"{db['nome']}: Analisi {len(matches)} match...")
+                # FILTRO: Prendi le partite da OGGI in poi (max 10)
+                matches = df_cal[df_cal['DT_CLEAN'] >= today].sort_values('DT_CLEAN').head(10)
+                
+                if not matches.empty:
+                    # Scarica Statistiche (Storico)
+                    df_h = get_data(db['history'])
+                    if df_h is not None:
+                        stats, ah, aa = process_stats(df_h)
+                        if stats is not None:
+                            teams_list = stats.index.tolist()
+                            st.toast(f"{db['nome']}: Trovati {len(matches)} match...", icon="✅")
+                            
+                            for _, row in matches.iterrows():
+                                raw_h = row.get('Home Team', row.get('HomeTeam','')).strip()
+                                raw_a = row.get('Away Team', row.get('AwayTeam','')).strip()
+                                match_d = row['DT_CLEAN']
                                 
-                                for _, row in matches.iterrows():
-                                    raw_h = row.get('Home Team', row.get('HomeTeam','')).strip()
-                                    raw_a = row.get('Away Team', row.get('AwayTeam','')).strip()
-                                    match_d = row['DT_CLEAN']
+                                # MATCHING NOMI
+                                real_h = smart_match_name(raw_h, teams_list)
+                                real_a = smart_match_name(raw_a, teams_list)
+                                
+                                res = analyze_math(real_h, real_a, stats, ah, aa)
+                                
+                                if res and res['Best']['Prob'] > 0.50:
+                                    found_any = True
+                                    best = res['Best']
+                                    fav = res['Fav_1X2']
                                     
-                                    # Correzione Nomi Automatica
-                                    real_h = smart_match_name(raw_h, teams_list)
-                                    real_a = smart_match_name(raw_a, teams_list)
-                                    
-                                    # Analisi
-                                    res = analyze_math(real_h, real_a, stats, ah, aa)
-                                    
-                                    # Filtro 50%
-                                    if res and res['Best']['Prob'] > 0.50:
-                                        found_any = True
-                                        best = res['Best']
-                                        fav = res['Fav_1X2']
-                                        
-                                        with st.container(border=True):
-                                            st.markdown(f"**{real_h} vs {real_a}** <small style='color:#888'>({match_d})</small>", unsafe_allow_html=True)
-                                            k1, k2, k3 = st.columns(3)
-                                            k1.metric("TOP", best['Tip'], f"{best['Prob']*100:.0f}%")
-                                            k2.metric("1X2", fav['Label'], f"{fav['Prob']*100:.0f}%")
-                                            k3.metric("Q", f"{best['Q']:.2f}")
+                                    with st.container(border=True):
+                                        st.markdown(f"**{real_h} vs {real_a}** <small style='color:#888'>({match_d})</small>", unsafe_allow_html=True)
+                                        k1, k2, k3 = st.columns(3)
+                                        k1.metric("TOP", best['Tip'], f"{best['Prob']*100:.0f}%")
+                                        k2.metric("1X2", fav['Label'], f"{fav['Prob']*100:.0f}%")
+                                        k3.metric("Q", f"{best['Q']:.2f}")
+                else:
+                    # Se il file esiste ma non ha partite future
+                    st.warning(f"Nessuna partita futura trovata in {db['nome']} (File non aggiornato?)")
+            else:
+                 st.error(f"Formato data non riconosciuto in {db['nome']}")
 
         if not found_any:
-            st.warning("Nessuna partita trovata. Verifica che i campionati non siano in pausa invernale.")
+            st.warning("Nessuna partita trovata. Prova la modalità Schedina Manuale.")
 
 # --- TAB SCHEDINA ---
 with tab_cart:
@@ -258,6 +260,8 @@ with tab_cart:
                 stats, ah, aa = process_stats(df)
                 st.session_state.update({'cur_stats': stats, 'cur_ah': ah, 'cur_aa': aa, 
                                        'cur_teams': sorted(stats.index.tolist()), 'loaded_league': sel})
+            else:
+                 st.error("Impossibile caricare lo storico per questo campionato.")
 
     if 'cur_teams' in st.session_state:
         c1, c2 = st.columns(2)
