@@ -39,6 +39,8 @@ st.markdown("""
         border-radius: 8px;
         border: 1px solid #444;
         width: 30%;
+        display: inline-block; /* Fix per allineamento */
+        margin: 0 5px;
     }
     .stat-label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px; }
     .stat-value { font-size: 18px; font-weight: bold; color: #fff; }
@@ -47,6 +49,14 @@ st.markdown("""
     .stat-blue { color: #2979ff !important; }
     .stat-yellow { color: #ffeb3b !important; }
     
+    /* Flex container per le stats (Centratura) */
+    .flex-stats {
+        display: flex;
+        justify-content: space-around;
+        align-items: center;
+        margin-top: 15px;
+    }
+
     /* Pulsanti */
     .stButton>button {
         background: linear-gradient(45deg, #00e676, #00c853);
@@ -65,31 +75,24 @@ st.markdown("""
     
     /* Sidebar */
     [data-testid="stSidebar"] { background-color: #111; border-right: 1px solid #222; }
-    
-    /* Flex container per le stats */
-    .flex-stats {
-        display: flex;
-        justify-content: space-around;
-        align-items: center;
-    }
 </style>
 """, unsafe_allow_html=True)
 
 # ==============================================================================
-# 2. DATABASE COMPLETO EUROPA (Link 2024/2025)
+# 2. DATABASE COMPLETO EUROPA (Link 2024/2025 - NOMI PULITI)
 # ==============================================================================
 LEAGUES = {
-    "🇮🇹 Serie A": "https://www.football-data.co.uk/mmz4281/2425/I1.csv",
-    "🇬🇧 Premier League": "https://www.football-data.co.uk/mmz4281/2425/E0.csv",
-    "🇪🇸 La Liga": "https://www.football-data.co.uk/mmz4281/2425/SP1.csv",
-    "🇩🇪 Bundesliga": "https://www.football-data.co.uk/mmz4281/2425/D1.csv",
-    "🇫🇷 Ligue 1": "https://www.football-data.co.uk/mmz4281/2425/F1.csv",
-    "🇳🇱 Eredivisie (Olanda)": "https://www.football-data.co.uk/mmz4281/2425/N1.csv",
-    "🇵🇹 Primeira Liga (Portogallo)": "https://www.football-data.co.uk/mmz4281/2425/P1.csv",
-    "🇧🇪 Jupiler League (Belgio)": "https://www.football-data.co.uk/mmz4281/2425/B1.csv",
-    "🏴󠁧󠁢󠁳󠁣󠁴󠁿 Premiership (Scozia)": "https://www.football-data.co.uk/mmz4281/2425/SC0.csv",
-    "🇹🇷 Super Lig (Turchia)": "https://www.football-data.co.uk/mmz4281/2425/T1.csv",
-    "🇬🇷 Super League (Grecia)": "https://www.football-data.co.uk/mmz4281/2425/G1.csv",
+    "Serie A (Italia)": "https://www.football-data.co.uk/mmz4281/2425/I1.csv",
+    "Premier League (UK)": "https://www.football-data.co.uk/mmz4281/2425/E0.csv",
+    "La Liga (Spagna)": "https://www.football-data.co.uk/mmz4281/2425/SP1.csv",
+    "Bundesliga (Germania)": "https://www.football-data.co.uk/mmz4281/2425/D1.csv",
+    "Ligue 1 (Francia)": "https://www.football-data.co.uk/mmz4281/2425/F1.csv",
+    "Eredivisie (Olanda)": "https://www.football-data.co.uk/mmz4281/2425/N1.csv",
+    "Primeira Liga (Portogallo)": "https://www.football-data.co.uk/mmz4281/2425/P1.csv",
+    "Jupiler League (Belgio)": "https://www.football-data.co.uk/mmz4281/2425/B1.csv",
+    "Premiership (Scozia)": "https://www.football-data.co.uk/mmz4281/2425/SC0.csv",
+    "Super Lig (Turchia)": "https://www.football-data.co.uk/mmz4281/2425/T1.csv",
+    "Super League (Grecia)": "https://www.football-data.co.uk/mmz4281/2425/G1.csv",
 }
 
 # ==============================================================================
@@ -156,11 +159,6 @@ def predict_match(xg_h, xg_a):
 def calculate_confidence_stake(prob, bankroll):
     # Se probabilità < 50%, non scommettere
     if prob <= 0.50: return 0.0
-    # Scaliamo lo stake in base alla sicurezza
-    # 50% -> 0€
-    # 60% -> 4% del budget
-    # 80% -> 12% del budget
-    # 100% -> 20% del budget
     factor = (prob - 0.50) * 2 
     stake = bankroll * (factor * 0.20)
     return round(stake, 2)
@@ -171,14 +169,14 @@ def calculate_confidence_stake(prob, bankroll):
 
 # --- SIDEBAR ---
 with st.sidebar:
-    st.title("⚙️ IMPOSTAZIONI")
-    budget = st.number_input("IL TUO BUDGET (€)", value=100.0, step=10.0)
+    st.title("IMPOSTAZIONI")
+    budget = st.number_input("IL TUO BUDGET (Euro)", value=100.0, step=10.0)
     st.divider()
-    st.info("💡 Scegli il campionato, seleziona le squadre e aggiungi al carrello. Il sistema calcolerà tutto.")
+    st.info("Scegli il campionato, seleziona le squadre e aggiungi al carrello.")
 
 # --- MAIN ---
-st.title("💎 BETTING MASTER AI")
-st.markdown("### Algoritmo Predittivo Poisson • Manual Mode")
+st.title("BETTING MASTER AI")
+st.markdown("### Algoritmo Predittivo Poisson - Manual Mode")
 
 # Session State
 if 'cart' not in st.session_state: st.session_state['cart'] = []
@@ -208,7 +206,7 @@ with col1:
             
             st.write("") # Spazio
             
-            if st.button("➕ AGGIUNGI AL CARRELLO", type="primary"):
+            if st.button("AGGIUNGI AL CARRELLO", type="primary"):
                 if home_team != away_team:
                     st.session_state['cart'].append({
                         "League": league_sel,
@@ -229,7 +227,7 @@ with col2:
     if not st.session_state['cart']:
         st.info("Il carrello è vuoto. Aggiungi delle partite dalla colonna di sinistra.")
     else:
-        if st.button("🗑️ SVUOTA TUTTO"):
+        if st.button("SVUOTA TUTTO"):
             st.session_state['cart'] = []
             st.rerun()
             
@@ -251,8 +249,8 @@ with col2:
                 # Calcolo Stake Automatico
                 stake = calculate_confidence_stake(best_prob, budget)
                 
-                # --- RENDER CARD ---
-                # Usiamo st.markdown con HTML pulito per la card
+                # --- HTML CARD ---
+                # NOTA: Qui uso f-string per iniettare i valori Python nell'HTML
                 card_html = f"""
                 <div class="match-card">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
@@ -278,10 +276,13 @@ with col2:
                     </div>
                 </div>
                 """
+                
+                # --- RENDERIZZA LA CARD ---
+                # Il parametro unsafe_allow_html=True è FONDAMENTALE per vedere la grafica
                 st.markdown(card_html, unsafe_allow_html=True)
                 
                 # Dettagli Espandibili
-                with st.expander(f"📊 Analisi Dettagliata: {item['Home']} vs {item['Away']}"):
+                with st.expander(f"Dettagli: {item['Home']} vs {item['Away']}"):
                     c1, c2, c3 = st.columns(3)
                     
                     c1.write("**Esito Finale (1X2)**")
