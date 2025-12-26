@@ -46,40 +46,40 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==============================================================================
-# DATABASE AGGIORNATO ALLA STAGIONE 2025/2026
+# DATABASE CORRETTO (STAGIONE ATTUALE 2024-2025)
 # ==============================================================================
 DATABASE = [
     {
         "id": "E0", 
         "nome": "🇬🇧 Premier League", 
-        # History: 2526 = Stagione 25/26
-        "history": "https://www.football-data.co.uk/mmz4281/2526/E0.csv", 
-        # Fixture: 2026 = File che finisce nel 2026 (quindi contiene Dic 2025)
-        "fixture": "https://fixturedownload.com/download/csv/2026/england-premier-league-2026.csv"
+        # History: 2425 = Stagione 24/25
+        "history": "https://www.football-data.co.uk/mmz4281/2425/E0.csv", 
+        # Fixture: 2024 = File che inizia nel 2024
+        "fixture": "https://fixturedownload.com/download/csv/2024/england-premier-league-2024.csv"
     },
     {
         "id": "I1", 
         "nome": "🇮🇹 Serie A", 
-        "history": "https://www.football-data.co.uk/mmz4281/2526/I1.csv", 
-        "fixture": "https://fixturedownload.com/download/csv/2026/italy-serie-a-2026.csv"
+        "history": "https://www.football-data.co.uk/mmz4281/2425/I1.csv", 
+        "fixture": "https://fixturedownload.com/download/csv/2024/italy-serie-a-2024.csv"
     },
     {
         "id": "SP1", 
         "nome": "🇪🇸 La Liga", 
-        "history": "https://www.football-data.co.uk/mmz4281/2526/SP1.csv", 
-        "fixture": "https://fixturedownload.com/download/csv/2026/spain-la-liga-2026.csv"
+        "history": "https://www.football-data.co.uk/mmz4281/2425/SP1.csv", 
+        "fixture": "https://fixturedownload.com/download/csv/2024/spain-la-liga-2024.csv"
     },
     {
         "id": "D1", 
         "nome": "🇩🇪 Bundesliga", 
-        "history": "https://www.football-data.co.uk/mmz4281/2526/D1.csv", 
-        "fixture": "https://fixturedownload.com/download/csv/2026/germany-bundesliga-2026.csv"
+        "history": "https://www.football-data.co.uk/mmz4281/2425/D1.csv", 
+        "fixture": "https://fixturedownload.com/download/csv/2024/germany-bundesliga-2024.csv"
     },
     {
         "id": "F1", 
         "nome": "🇫🇷 Ligue 1", 
-        "history": "https://www.football-data.co.uk/mmz4281/2526/F1.csv", 
-        "fixture": "https://fixturedownload.com/download/csv/2026/france-ligue-1-2026.csv"
+        "history": "https://www.football-data.co.uk/mmz4281/2425/F1.csv", 
+        "fixture": "https://fixturedownload.com/download/csv/2024/france-ligue-1-2024.csv"
     }
 ]
 
