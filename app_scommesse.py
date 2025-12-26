@@ -7,21 +7,18 @@ import io
 from datetime import datetime, timedelta
 
 # ==============================================================================
-# CONFIGURAZIONE & STILE
+# CONFIGURAZIONE PAGINA
 # ==============================================================================
 DEFAULT_BUDGET = 100.0
+st.set_page_config(page_title="BETTING PRO 2.0", page_icon="⚽", layout="centered")
 
-st.set_page_config(page_title="BETTING PRO 1X2", page_icon="⚽", layout="centered")
-
+# Stile CSS per nascondere menu e migliorare la grafica
 st.markdown("""
 <style>
     .stApp { background-color: #000000; }
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
+    #MainMenu, footer, header {visibility: hidden;}
     [data-testid="stSidebar"] {display: none;}
-
-    /* TAB STYLE */
+    
     .stTabs [data-baseweb="tab-list"] { gap: 8px; background-color: #000; padding: 10px; }
     .stTabs [data-baseweb="tab"] {
         height: 55px; background-color: #1a1a1a; border: 1px solid #333;
@@ -30,62 +27,75 @@ st.markdown("""
     .stTabs [aria-selected="true"] {
         background-color: #00d26a !important; color: #000 !important; border: none;
     }
-
-    /* METRICHE */
-    [data-testid="stMetricLabel"] {
-        font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 1px;
-    }
-    [data-testid="stMetricValue"] {
-        font-size: 24px; font-weight: 900; color: #fff;
-    }
     
-    /* Colori Specifici Colonne */
-    /* Col 1 (Best Tip): Verde Neon */
-    div[data-testid="column"]:nth-of-type(1) [data-testid="stMetricValue"] {
-        color: #00ff00 !important; text-shadow: 0 0 10px rgba(0,255,0,0.4);
-    }
-    /* Col 2 (1X2): Blu Elettrico */
-    div[data-testid="column"]:nth-of-type(2) [data-testid="stMetricValue"] {
-        color: #00bfff !important;
-    }
-    /* Col 3 (Soldi): Bianco */
-    div[data-testid="column"]:nth-of-type(3) [data-testid="stMetricValue"] {
-        color: #ffffff !important; background-color: #222; border-radius: 5px; padding: 0 5px;
-    }
-
-    /* CONTAINER */
+    /* Metriche personalizzate */
+    div[data-testid="column"]:nth-of-type(1) [data-testid="stMetricValue"] { color: #00ff00 !important; } /* Verde */
+    div[data-testid="column"]:nth-of-type(2) [data-testid="stMetricValue"] { color: #00bfff !important; } /* Blu */
+    div[data-testid="column"]:nth-of-type(3) [data-testid="stMetricValue"] { color: #ffffff !important; } /* Bianco */
+    
     [data-testid="stVerticalBlock"] > [style*="flex-direction: column;"] > [data-testid="stVerticalBlock"] {
         background-color: #111; border: 1px solid #222; border-radius: 12px; padding: 15px;
     }
-    
-    /* BARRE PROBABILITA */
-    .stProgress > div > div > div > div {
-        background-color: #00bfff;
-    }
+    .stProgress > div > div > div > div { background-color: #00bfff; }
 </style>
 """, unsafe_allow_html=True)
 
 # ==============================================================================
-# LOGICA MATEMATICA
+# DATABASE & MAPPA NOMI (Cruciale per far coincidere i dati)
 # ==============================================================================
 DATABASE = [
-    {"id": "I1", "nome": "🇮🇹 Serie A", "history": "https://www.football-data.co.uk/mmz4281/2526/I1.csv", "fixture": "https://fixturedownload.com/download/csv/2025/italy-serie-a-2025.csv"},
     {"id": "E0", "nome": "🇬🇧 Premier", "history": "https://www.football-data.co.uk/mmz4281/2526/E0.csv", "fixture": "https://fixturedownload.com/download/csv/2025/england-premier-league-2025.csv"},
+    {"id": "I1", "nome": "🇮🇹 Serie A", "history": "https://www.football-data.co.uk/mmz4281/2526/I1.csv", "fixture": "https://fixturedownload.com/download/csv/2025/italy-serie-a-2025.csv"},
     {"id": "SP1", "nome": "🇪🇸 Liga", "history": "https://www.football-data.co.uk/mmz4281/2526/SP1.csv", "fixture": "https://fixturedownload.com/download/csv/2025/spain-la-liga-2025.csv"},
     {"id": "D1", "nome": "🇩🇪 Bund", "history": "https://www.football-data.co.uk/mmz4281/2526/D1.csv", "fixture": "https://fixturedownload.com/download/csv/2025/germany-bundesliga-2025.csv"},
     {"id": "F1", "nome": "🇫🇷 Ligue1", "history": "https://www.football-data.co.uk/mmz4281/2526/F1.csv", "fixture": "https://fixturedownload.com/download/csv/2025/france-ligue-1-2025.csv"},
 ]
 
+# Dizionario per correggere i nomi diversi tra Calendario e Statistiche
+NAME_MAPPING = {
+    "Man Utd": "Man United", "Manchester United": "Man United",
+    "Man City": "Man City", "Manchester City": "Man City",
+    "Nott'm Forest": "Nottm Forest", "Nottingham Forest": "Nottm Forest",
+    "Sheffield Utd": "Sheffield United",
+    "Luton": "Luton Town",
+    "Wolves": "Wolverhampton", "Wolverhampton Wanderers": "Wolverhampton",
+    "Brighton": "Brighton & Hove Albion",
+    "Spurs": "Tottenham", "Tottenham Hotspur": "Tottenham",
+    "West Ham": "West Ham United",
+    "Newcastle": "Newcastle United",
+    "Inter": "Internazionale", "Milan": "AC Milan",
+    "Monza": "Monza"
+}
+
 if 'cart' not in st.session_state: st.session_state['cart'] = []
 if 'loaded_league' not in st.session_state: st.session_state['loaded_league'] = None
 
+# ==============================================================================
+# FUNZIONI DATI
+# ==============================================================================
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_data(url):
     try:
         r = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=5)
-        if r.status_code == 200: return pd.read_csv(io.StringIO(r.text))
+        if r.status_code == 200: 
+            return pd.read_csv(io.StringIO(r.text))
     except: return None
     return None
+
+def normalize_name(name, known_teams):
+    """Cerca di far combaciare il nome del calendario con quello delle statistiche"""
+    name = name.strip()
+    # 1. Controllo dizionario manuale
+    if name in NAME_MAPPING:
+        return NAME_MAPPING[name]
+    # 2. Controllo diretto
+    if name in known_teams:
+        return name
+    # 3. Tentativo "contiene" (es. "Inter Milan" -> "Internazionale" no, ma "Luton" -> "Luton Town" si)
+    for t in known_teams:
+        if name in t or t in name:
+            return t
+    return name
 
 def process_stats(df):
     try:
@@ -94,6 +104,10 @@ def process_stats(df):
         df = df.sort_values('Date')
         
         avg_h, avg_a = df['FTHG'].mean(), df['FTAG'].mean()
+        
+        # Pesi: 60% Stagione intera, 40% Ultime 5 partite
+        PS, PF = 0.60, 0.40
+        
         sc = df.groupby('HomeTeam')[['FTHG','FTAG']].mean()
         st = df.groupby('AwayTeam')[['FTAG','FTHG']].mean()
         fc = df.groupby('HomeTeam')[['FTHG','FTAG']].apply(lambda x: x.tail(5).mean())
@@ -103,7 +117,7 @@ def process_stats(df):
         fc.columns, ft.columns = ['H_GF_F','H_GS_F'], ['A_GF_F','A_GS_F']
         
         tot = pd.concat([sc,st,fc,ft], axis=1)
-        PS, PF = 0.60, 0.40
+        
         tot['Att_H'] = ((tot['H_GF_S']*PS + tot['H_GF_F']*PF) / avg_h)
         tot['Dif_H'] = ((tot['H_GS_S']*PS + tot['H_GS_F']*PF) / avg_a)
         tot['Att_A'] = ((tot['A_GF_S']*PS + tot['A_GF_F']*PF) / avg_a)
@@ -127,30 +141,22 @@ def analyze_math(h, a, stats, ah, aa):
                 else: pa+=p
         
         p_o25 = 1 - (poisson.pmf(0, lh+la) + poisson.pmf(1, lh+la) + poisson.pmf(2, lh+la))
-        p_u25 = 1 - p_o25
         p_gg = (1 - poisson.pmf(0, lh)) * (1 - poisson.pmf(0, la))
         
-        # Tutte le opzioni
         options = [
-            {"Tip": "PUNTA 1", "Prob": ph, "Q": 1/ph if ph>0 else 0},
-            {"Tip": "PUNTA 2", "Prob": pa, "Q": 1/pa if pa>0 else 0},
-            {"Tip": "RISCHIO X", "Prob": pd, "Q": 1/pd if pd>0 else 0},
-            {"Tip": "OVER 2.5", "Prob": p_o25, "Q": 1/p_o25 if p_o25>0 else 0},
-            {"Tip": "UNDER 2.5", "Prob": p_u25, "Q": 1/p_u25 if p_u25>0 else 0},
-            {"Tip": "GOAL", "Prob": p_gg, "Q": 1/p_gg if p_gg>0 else 0}
+            {"Tip": "PUNTA 1", "Prob": ph, "Q": 1/ph},
+            {"Tip": "PUNTA 2", "Prob": pa, "Q": 1/pa},
+            {"Tip": "RISCHIO X", "Prob": pd, "Q": 1/pd},
+            {"Tip": "OVER 2.5", "Prob": p_o25, "Q": 1/p_o25},
+            {"Tip": "GOAL", "Prob": p_gg, "Q": 1/p_gg}
         ]
         
-        # Calcolo il Favorito 1X2 per mostrarlo a parte
+        # Logica Favorito
         probs_1x2 = {"1": ph, "X": pd, "2": pa}
         fav_sign = max(probs_1x2, key=probs_1x2.get)
-        fav_prob = probs_1x2[fav_sign]
         
-        if fav_sign == "1": fav_label = "CASA"
-        elif fav_sign == "2": fav_label = "OSPITE"
-        else: fav_label = "PAREGGIO"
-
-        # Trovo la Best Option assoluta
-        valid = [o for o in options if o['Prob'] > (0.33 if "X" in o['Tip'] else 0.50)]
+        # Filtro Migliore Opzione
+        valid = [o for o in options if o['Prob'] > 0.50]
         if valid:
             valid.sort(key=lambda x: x['Prob'], reverse=True)
             best = valid[0]
@@ -158,77 +164,83 @@ def analyze_math(h, a, stats, ah, aa):
             best = {"Tip": "NO BET", "Prob": 0, "Q": 0}
 
         return {
-            "c": h, "o": a, 
-            "Best": best, 
-            "Fav_1X2": {"Label": fav_label, "Prob": fav_prob, "Sign": fav_sign},
-            "Probs": {"1": ph, "X": pd, "2": pa},
-            "All": options,
-            "xG_H": lh, "xG_A": la
+            "c": h, "o": a, "Best": best, 
+            "Fav_1X2": {"Label": "CASA" if fav_sign=="1" else "OSPITE" if fav_sign=="2" else "PARI", "Prob": probs_1x2[fav_sign]},
+            "Probs": probs_1x2, "xG_H": lh, "xG_A": la
         }
     except: return None
 
 def calculate_stake(prob, quota, bankroll):
     try:
-        if quota <= 1: return 0
         f = ((quota - 1) * prob - (1 - prob)) / (quota - 1)
-        stake = bankroll * (f * 0.20)
-        return round(max(0, stake), 2)
+        return round(max(0, bankroll * (f * 0.20)), 2)
     except: return 0
 
 # ==============================================================================
 # UI
 # ==============================================================================
-st.title("⚽ BETTING PRO 1X2")
-
+st.title("⚽ BETTING PRO 2.0")
 bankroll = st.number_input("Tuo Budget (€)", value=DEFAULT_BUDGET, step=10.0)
-
 tab_radar, tab_cart = st.tabs(["RADAR AUTO", "SCHEDINA"])
 
-# --- TAB RADAR (MODIFICATA) ---
+# --- TAB RADAR ---
 with tab_radar:
-    st.write("### 🔎 Scanner Partite Europa")
+    st.write("### 🔎 Scanner Partite")
+    sel_date = st.date_input("Data Partite:", datetime.now())
     
-    # 1. CALENDARIO AL POSTO DEI BOTTONI
-    sel_date = st.date_input("Seleziona la data da analizzare:", datetime.now())
-    
-    if st.button("AVVIA SCANSIONE", type="primary", use_container_width=True):
-        target_d = sel_date.strftime('%Y-%m-%d')
-        st.info(f"Analisi in corso per il {target_d} su tutti i campionati...")
-        found = False
+    if st.button("SCANSIONA TUTTO", type="primary", use_container_width=True):
+        target_str = sel_date.strftime('%Y-%m-%d')
+        st.caption(f"Cerco partite del {target_str}...")
+        
+        global_found = False
         
         for db in DATABASE:
+            # 1. Scarica Calendario
             df_cal = get_data(db['fixture'])
             if df_cal is not None:
-                cd = 'Date' if 'Date' in df_cal.columns else 'Match Date'
-                df_cal[cd] = pd.to_datetime(df_cal[cd], errors='coerce')
-                matches = df_cal[df_cal[cd].dt.strftime('%Y-%m-%d') == target_d]
+                # Normalizza date
+                col_date = 'Date' if 'Date' in df_cal.columns else 'Match Date'
+                df_cal[col_date] = pd.to_datetime(df_cal[col_date], errors='coerce')
                 
-                if not matches.empty:
+                # Filtra per data scelta
+                day_matches = df_cal[df_cal[col_date].dt.strftime('%Y-%m-%d') == target_str]
+                
+                if not day_matches.empty:
+                    # 2. Se ci sono partite, scarica le Statistiche (Storia)
                     df_h = get_data(db['history'])
                     if df_h is not None:
                         stats, ah, aa = process_stats(df_h)
                         if stats is not None:
-                            for _, r in matches.iterrows():
-                                c = r.get('Home Team', r.get('HomeTeam','')).strip()
-                                o = r.get('Away Team', r.get('AwayTeam','')).strip()
-                                m = {"Man Utd":"Man United", "Utd":"United"}
-                                c, o = m.get(c,c), m.get(o,o)
+                            teams_list = stats.index.tolist()
+                            
+                            st.toast(f"Trovate {len(day_matches)} partite in {db['nome']}...", icon="ℹ️")
+                            
+                            for _, row in day_matches.iterrows():
+                                # Prendi i nomi grezzi dal calendario
+                                raw_h = row.get('Home Team', row.get('HomeTeam','')).strip()
+                                raw_a = row.get('Away Team', row.get('AwayTeam','')).strip()
                                 
-                                res = analyze_math(c, o, stats, ah, aa)
+                                # 3. MAPPING INTELLIGENTE (Fondamentale!)
+                                real_h = normalize_name(raw_h, teams_list)
+                                real_a = normalize_name(raw_a, teams_list)
                                 
-                                # 2. SOGLIA ABBASSATA AL 50% (0.50)
+                                # 4. Analisi
+                                res = analyze_math(real_h, real_a, stats, ah, aa)
+                                
+                                # 5. Filtro (Basta il 50%)
                                 if res and res['Best']['Prob'] > 0.50:
-                                    found = True
+                                    global_found = True
                                     best = res['Best']
                                     with st.container(border=True):
-                                        st.markdown(f"**{c} vs {o}**")
-                                        st.caption(f"{db['nome']}") # Mostra anche il campionato
+                                        st.markdown(f"**{real_h} vs {real_a}**")
+                                        st.caption(f"{db['nome']}")
                                         k1, k2, k3 = st.columns(3)
                                         k1.metric("TOP", best['Tip'], f"{best['Prob']*100:.0f}%")
                                         k2.metric("1X2", res['Fav_1X2']['Label'], f"{res['Fav_1X2']['Prob']*100:.0f}%")
                                         k3.metric("QUOTA", f"{best['Q']:.2f}")
 
-        if not found: st.warning(f"Nessuna partita trovata sopra il 50% per il {target_d}.")
+        if not global_found:
+            st.warning("Nessuna partita trovata. Controlla che ci siano partite OGGI in Premier/Serie A, oppure cambia data.")
 
 # --- TAB CARRELLO ---
 with tab_cart:
@@ -261,57 +273,26 @@ with tab_cart:
                 st.session_state['cart'].pop(i)
                 st.rerun()
 
-        if st.button("🚀 CALCOLA ANALISI COMPLETA", type="primary", use_container_width=True):
+        if st.button("🚀 CALCOLA ANALISI", type="primary", use_container_width=True):
             for item in st.session_state['cart']:
                 res = analyze_math(item['c'], item['o'], item['stats'], item['ah'], item['aa'])
                 if res:
                     best = res['Best']
-                    fav = res['Fav_1X2']
                     stake = calculate_stake(best['Prob'], best['Q']*1.05, bankroll)
-                    
                     with st.container(border=True):
-                        # Intestazione
-                        st.markdown(f"#### {item['c']} <span style='color:#666'>vs</span> {item['o']}", unsafe_allow_html=True)
+                        st.markdown(f"#### {item['c']} vs {item['o']}")
+                        c1, c2, c3 = st.columns(3)
+                        c1.metric("STRATEGIA", best['Tip'], f"{best['Prob']*100:.1f}%")
+                        c2.metric("FAVORITO", res['Fav_1X2']['Label'], f"{res['Fav_1X2']['Prob']*100:.0f}%")
+                        c3.metric("PUNTA", f"€{stake}", f"Q: {best['Q']:.2f}")
                         
-                        # 3 Colonne Magiche
-                        c_top, c_1x2, c_soldi = st.columns(3)
-                        
-                        # 1. Miglior Scelta (es. Over 2.5)
-                        c_top.metric(
-                            label="STRATEGIA",
-                            value=best['Tip'],
-                            delta=f"{best['Prob']*100:.1f}% Sicurezza"
-                        )
-                        
-                        # 2. Chi Vince (1X2)
-                        c_1x2.metric(
-                            label="FAVORITO 1X2",
-                            value=fav['Label'],
-                            delta=f"{fav['Prob']*100:.1f}% Prob."
-                        )
-                        
-                        # 3. Soldi
-                        c_soldi.metric(
-                            label="PUNTARE",
-                            value=f"€{stake}",
-                            delta=f"Quota {best['Q']:.2f}"
-                        )
-                        
-                        st.divider()
-                        
-                        # Barre 1X2 visibili subito
-                        st.caption("Probabilità Esito Finale (1X2):")
+                        st.caption("Probabilità 1X2:")
                         p = res['Probs']
-                        
-                        # Creiamo 3 colonne piccole per le barre
                         b1, b2, b3 = st.columns(3)
                         b1.progress(p['1'], f"1: {p['1']*100:.0f}%")
                         b2.progress(p['X'], f"X: {p['X']*100:.0f}%")
                         b3.progress(p['2'], f"2: {p['2']*100:.0f}%")
-                        
-                        # xG Info
-                        st.markdown(f"<div style='text-align:center; font-size:11px; color:#666; margin-top:10px;'>xG Attesi: {res['xG_H']:.2f} - {res['xG_A']:.2f}</div>", unsafe_allow_html=True)
 
-        if st.button("Svuota tutto", use_container_width=True):
+        if st.button("Svuota tutto"):
             st.session_state['cart'] = []
             st.rerun()
